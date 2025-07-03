@@ -1,6 +1,6 @@
 "use client"
 
-import { MessageSquare, GitCompare, Plus, PanelLeftClose, PanelLeftOpen, Rocket } from "lucide-react"
+import { MessageSquare, GitCompare, Plus, ChevronLeft, ChevronRight, Rocket } from "lucide-react"
 import Image from "next/image"
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -69,14 +70,28 @@ export function AppSidebar({
                 height={32}
                 className="h-8 w-auto"
               />
-              <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} className="h-8 w-8 p-0">
-                <PanelLeftClose className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} className="h-8 w-8 p-0">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Collapse sidebar</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} className="h-8 w-8 p-0">
-              <PanelLeftOpen className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} className="h-8 w-8 p-0">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Expand sidebar</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </SidebarHeader>
