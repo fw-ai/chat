@@ -11,7 +11,14 @@ export type ViewType = "single" | "comparison"
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>("single")
   const [speedTestEnabled, setSpeedTestEnabled] = useState(false)
-  const [concurrency, setConcurrency] = useState(1)
+  const [concurrency, setConcurrency] = useState(5)
+  
+  const handleSpeedTestToggle = (enabled: boolean) => {
+    setSpeedTestEnabled(enabled)
+    if (enabled && concurrency === 1) {
+      setConcurrency(5)
+    }
+  }
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -19,7 +26,7 @@ export default function App() {
         currentView={currentView} 
         onViewChange={setCurrentView}
         speedTestEnabled={speedTestEnabled}
-        onSpeedTestToggle={setSpeedTestEnabled}
+        onSpeedTestToggle={handleSpeedTestToggle}
         concurrency={concurrency}
         onConcurrencyChange={setConcurrency}
       />

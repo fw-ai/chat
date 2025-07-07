@@ -26,6 +26,15 @@ export interface SpeedTestResults {
   model1_times: number[]
   model2_times: number[]
   concurrency: number
+  model1_tps?: number
+  model2_tps?: number
+  model1_rps?: number
+  model2_rps?: number
+  model1_ttft?: number
+  model2_ttft?: number
+  model1_completed_requests?: number
+  model2_completed_requests?: number
+  total_requests?: number
 }
 
 export interface ComparisonChatState {

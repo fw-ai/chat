@@ -2,8 +2,9 @@
 
 import type { Message } from "@/types/chat"
 import { Button } from "@/components/ui/button"
-import { Copy, User, Bot, AlertCircle } from "lucide-react"
+import { Copy, AlertCircle } from "lucide-react"
 import { useState } from "react"
+import Image from "next/image"
 
 interface MessageProps {
   message: Message
@@ -25,19 +26,39 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
 
   const isUser = message.role === "user"
 
+  if (isUser) {
+    // User messages on the right side without icon/circle
+    return (
+      <div className="flex justify-end p-4 bg-muted/30">
+        <div className="max-w-[80%] space-y-2">
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground">{message.timestamp.toLocaleTimeString()}</span>
+          </div>
+          <div className="prose prose-sm max-w-none bg-primary text-primary-foreground p-3 rounded-lg">
+            <div className="whitespace-pre-wrap text-white">
+              {message.content}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Bot messages on the left side with fireworks icon
   return (
-    <div className={`flex gap-3 p-4 ${isUser ? "bg-muted/30" : "bg-background"}`}>
-      <div
-        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-          isUser ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
-        }`}
-      >
-        {isUser ? <User size={16} /> : <Bot size={16} />}
+    <div className="flex gap-3 p-4 bg-background">
+      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+        <Image
+          src="/favicon-16x16.png"
+          alt="Fireworks AI"
+          width={16}
+          height={16}
+          className="w-4 h-4"
+        />
       </div>
 
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{isUser ? "You" : "Assistant"}</span>
           {showModel && message.model && (
             <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{message.model}</span>
           )}
@@ -58,7 +79,7 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
           )}
         </div>
 
-        {!isUser && !message.error && message.content && (
+        {!message.error && message.content && (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={copyToClipboard} className="h-8 px-2">
               <Copy size={14} />

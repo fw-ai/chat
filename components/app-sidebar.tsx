@@ -154,12 +154,11 @@ export function AppSidebar({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">1 request</SelectItem>
                         <SelectItem value="2">2 requests</SelectItem>
-                        <SelectItem value="3">3 requests</SelectItem>
                         <SelectItem value="5">5 requests</SelectItem>
                         <SelectItem value="10">10 requests</SelectItem>
                         <SelectItem value="20">20 requests</SelectItem>
+                        <SelectItem value="50">50 requests</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">

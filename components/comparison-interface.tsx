@@ -8,6 +8,9 @@ import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
 import { SpeedTestResultsComponent } from "@/components/speed-test-results"
+import { TpsMetric } from "@/components/tps-metric"
+import { RpsMetric } from "@/components/rps-metric"
+import { TtftMetric } from "@/components/ttft-metric"
 import { Trash2 } from "lucide-react"
 
 interface ComparisonInterfaceProps {
@@ -48,6 +51,29 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             />
           </div>
 
+          {/* Left speed test indicators */}
+          {speedTestEnabled && (
+            <div className="px-2 py-1 bg-muted/10 border-b">
+              <div className="grid grid-cols-3 gap-1">
+                <TpsMetric
+                  tps={comparisonChat.speedTestResults?.model1_tps || 0}
+                  label={leftModel.name}
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+                <RpsMetric
+                  rps={comparisonChat.speedTestResults?.model1_rps || 0}
+                  label={leftModel.name}
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+                <TtftMetric
+                  ttft={comparisonChat.speedTestResults?.model1_ttft || 0}
+                  label={leftModel.name}
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Left chat area */}
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto">
@@ -87,6 +113,29 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             />
           </div>
 
+          {/* Right speed test indicators */}
+          {speedTestEnabled && (
+            <div className="px-2 py-1 bg-muted/10 border-b">
+              <div className="grid grid-cols-3 gap-1">
+                <TpsMetric
+                  tps={comparisonChat.speedTestResults?.model2_tps || 0}
+                  label={rightModel.name}
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+                <RpsMetric
+                  rps={comparisonChat.speedTestResults?.model2_rps || 0}
+                  label={rightModel.name}
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+                <TtftMetric
+                  ttft={comparisonChat.speedTestResults?.model2_ttft || 0}
+                  label={rightModel.name}
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Right chat area */}
           <div className="flex-1 flex flex-col">
             <div className="flex-1 overflow-y-auto">
@@ -114,6 +163,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
           </div>
         </div>
       </div>
+
 
       {/* Speed Test Results */}
       {speedTestEnabled && comparisonChat.speedTestResults && (
