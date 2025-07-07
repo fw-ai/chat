@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useChat } from "@/hooks/use-chat"
 import type { ChatModel } from "@/types/chat"
-import { ModelSelector, AVAILABLE_MODELS } from "@/components/model-selector"
+import { ModelSelector } from "@/components/model-selector"
 import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Trash2 } from "lucide-react"
 
 export function ChatInterface() {
-  const [selectedModel, setSelectedModel] = useState<ChatModel>(AVAILABLE_MODELS[0])
+  const [selectedModel, setSelectedModel] = useState<ChatModel | undefined>()
   const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel)
 
   const handleSendMessage = (message: string) => {
@@ -23,7 +23,6 @@ export function ChatInterface() {
       {/* Top bar with model selection only */}
       <div className="flex items-center p-4 border-b bg-background">
         <ModelSelector
-          models={AVAILABLE_MODELS}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           className="w-64"
@@ -38,7 +37,7 @@ export function ChatInterface() {
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <div className="text-center">
                   <p className="text-lg mb-2">Start a conversation</p>
-                  <p className="text-sm">Ask me anything and I'll respond using {selectedModel.name}</p>
+                  <p className="text-sm">Ask me anything and I'll respond using {selectedModel?.name || 'the selected model'}</p>
                 </div>
               </div>
             ) : (
@@ -58,7 +57,7 @@ export function ChatInterface() {
             <ChatInput
               onSendMessage={handleSendMessage}
               disabled={isLoading}
-              placeholder={`Ask ${selectedModel.name} anything...`}
+              placeholder={`Ask ${selectedModel?.name || 'the model'} anything...`}
               showSendButton={false}
             />
             <Button

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useComparisonChat } from "@/hooks/use-comparison-chat"
 import type { ChatModel } from "@/types/chat"
-import { ModelSelector, AVAILABLE_MODELS } from "@/components/model-selector"
+import { ModelSelector } from "@/components/model-selector"
 import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
@@ -19,8 +19,8 @@ interface ComparisonInterfaceProps {
 }
 
 export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 }: ComparisonInterfaceProps) {
-  const [leftModel, setLeftModel] = useState<ChatModel>(AVAILABLE_MODELS[0])
-  const [rightModel, setRightModel] = useState<ChatModel>(AVAILABLE_MODELS[1])
+  const [leftModel, setLeftModel] = useState<ChatModel | undefined>()
+  const [rightModel, setRightModel] = useState<ChatModel | undefined>()
 
   const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency)
 
@@ -44,7 +44,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
           {/* Left model selector */}
           <div className="p-4 border-b bg-muted/30">
             <ModelSelector
-              models={AVAILABLE_MODELS}
               selectedModel={leftModel}
               onModelChange={setLeftModel}
               className="w-full"
@@ -57,17 +56,17 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
               <div className="grid grid-cols-3 gap-1">
                 <TpsMetric
                   tps={comparisonChat.speedTestResults?.model1_tps || 0}
-                  label={leftModel.name}
+                  label={leftModel?.name || 'Model 1'}
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <RpsMetric
                   rps={comparisonChat.speedTestResults?.model1_rps || 0}
-                  label={leftModel.name}
+                  label={leftModel?.name || 'Model 1'}
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <TtftMetric
                   ttft={comparisonChat.speedTestResults?.model1_ttft || 0}
-                  label={leftModel.name}
+                  label={leftModel?.name || 'Model 1'}
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
               </div>
@@ -81,8 +80,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <div className="text-center">
                     <p className="text-sm mb-1">Responses from</p>
-                    <p className="font-medium">{leftModel.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">({leftModel.provider})</p>
+                    <p className="font-medium">{leftModel?.name || 'Model 1'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">({leftModel?.provider || 'Loading...'})</p>
                   </div>
                 </div>
               ) : (
@@ -106,7 +105,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
           {/* Right model selector */}
           <div className="p-4 border-b bg-muted/30">
             <ModelSelector
-              models={AVAILABLE_MODELS}
               selectedModel={rightModel}
               onModelChange={setRightModel}
               className="w-full"
@@ -119,17 +117,17 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
               <div className="grid grid-cols-3 gap-1">
                 <TpsMetric
                   tps={comparisonChat.speedTestResults?.model2_tps || 0}
-                  label={rightModel.name}
+                  label={rightModel?.name || 'Model 2'}
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <RpsMetric
                   rps={comparisonChat.speedTestResults?.model2_rps || 0}
-                  label={rightModel.name}
+                  label={rightModel?.name || 'Model 2'}
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <TtftMetric
                   ttft={comparisonChat.speedTestResults?.model2_ttft || 0}
-                  label={rightModel.name}
+                  label={rightModel?.name || 'Model 2'}
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
               </div>
@@ -143,8 +141,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <div className="text-center">
                     <p className="text-sm mb-1">Responses from</p>
-                    <p className="font-medium">{rightModel.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">({rightModel.provider})</p>
+                    <p className="font-medium">{rightModel?.name || 'Model 2'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">({rightModel?.provider || 'Loading...'})</p>
                   </div>
                 </div>
               ) : (
@@ -170,8 +168,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
         <div className="px-4">
           <SpeedTestResultsComponent
             results={comparisonChat.speedTestResults}
-            leftModelName={leftModel.name}
-            rightModelName={rightModel.name}
+            leftModelName={leftModel?.name || 'Model 1'}
+            rightModelName={rightModel?.name || 'Model 2'}
           />
         </div>
       )}

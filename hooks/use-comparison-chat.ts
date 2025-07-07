@@ -106,38 +106,33 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         let rightContent = ""
         let speedTestResults: SpeedTestResults | undefined
         
-        for await (const chunk of apiClient.streamResponse(stream)) {
-          try {
-            const data = JSON.parse(chunk)
-            if (data.model1_response) {
-              leftContent += data.model1_response
-              setState((prev) => ({
-                ...prev,
-                leftChat: {
-                  ...prev.leftChat,
-                  messages: prev.leftChat.messages.map((msg) =>
-                    msg.id === leftAssistantMessage.id ? { ...msg, content: leftContent } : msg,
-                  ),
-                },
-              }))
-            }
-            if (data.model2_response) {
-              rightContent += data.model2_response
-              setState((prev) => ({
-                ...prev,
-                rightChat: {
-                  ...prev.rightChat,
-                  messages: prev.rightChat.messages.map((msg) =>
-                    msg.id === rightAssistantMessage.id ? { ...msg, content: rightContent } : msg,
-                  ),
-                },
-              }))
-            }
-            if (data.speed_test_results) {
-              speedTestResults = data.speed_test_results
-            }
-          } catch (e) {
-            console.warn("Failed to parse comparison response:", chunk)
+        for await (const data of apiClient.streamCompareResponse(stream)) {
+          if (data.model1_response) {
+            leftContent += data.model1_response
+            setState((prev) => ({
+              ...prev,
+              leftChat: {
+                ...prev.leftChat,
+                messages: prev.leftChat.messages.map((msg) =>
+                  msg.id === leftAssistantMessage.id ? { ...msg, content: leftContent } : msg,
+                ),
+              },
+            }))
+          }
+          if (data.model2_response) {
+            rightContent += data.model2_response
+            setState((prev) => ({
+              ...prev,
+              rightChat: {
+                ...prev.rightChat,
+                messages: prev.rightChat.messages.map((msg) =>
+                  msg.id === rightAssistantMessage.id ? { ...msg, content: rightContent } : msg,
+                ),
+              },
+            }))
+          }
+          if (data.speed_test_results) {
+            speedTestResults = data.speed_test_results
           }
         }
 
