@@ -14,9 +14,13 @@ interface SpeedTestResultsProps {
 export function SpeedTestResultsComponent({ results, leftModelName, rightModelName }: SpeedTestResultsProps) {
   const formatTime = (time: number) => `${time.toFixed(0)}ms`
   
-  const winner = results.model1_avg_time < results.model2_avg_time ? 'left' : 'right'
-  const speedDifference = Math.abs(results.model1_avg_time - results.model2_avg_time)
-  const percentageDifference = ((speedDifference / Math.max(results.model1_avg_time, results.model2_avg_time)) * 100).toFixed(1)
+  // Calculate average times from the arrays
+  const model1_avg_time = results.model1_avg_time || (results.model1_times.length > 0 ? results.model1_times.reduce((a, b) => a + b, 0) / results.model1_times.length : 0)
+  const model2_avg_time = results.model2_avg_time || (results.model2_times.length > 0 ? results.model2_times.reduce((a, b) => a + b, 0) / results.model2_times.length : 0)
+  
+  const winner = model1_avg_time < model2_avg_time ? 'left' : 'right'
+  const speedDifference = Math.abs(model1_avg_time - model2_avg_time)
+  const percentageDifference = ((speedDifference / Math.max(model1_avg_time, model2_avg_time)) * 100).toFixed(1)
 
   return (
     <Card className="w-full mt-4 bg-muted/30">
@@ -51,7 +55,7 @@ export function SpeedTestResultsComponent({ results, leftModelName, rightModelNa
               {winner === 'left' && <Badge variant="default" className="text-xs">Winner</Badge>}
             </div>
             <div className="text-2xl font-bold text-blue-600">
-              {formatTime(results.model1_avg_time)}
+              {formatTime(model1_avg_time)}
             </div>
             <div className="text-xs text-muted-foreground">
               Average response time
@@ -67,7 +71,7 @@ export function SpeedTestResultsComponent({ results, leftModelName, rightModelNa
               {winner === 'right' && <Badge variant="default" className="text-xs">Winner</Badge>}
             </div>
             <div className="text-2xl font-bold text-purple-600">
-              {formatTime(results.model2_avg_time)}
+              {formatTime(model2_avg_time)}
             </div>
             <div className="text-xs text-muted-foreground">
               Average response time

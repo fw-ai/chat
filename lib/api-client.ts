@@ -33,6 +33,8 @@ interface BackendCompareRequest {
   comparison_id?: string
   max_tokens?: number
   temperature?: number
+  speed_test?: boolean
+  concurrency?: number
 }
 
 export interface ChatResponse {
@@ -166,6 +168,8 @@ export class ApiClient {
       message: request.message,
       model_keys: [request.model1, request.model2],
       comparison_id: request.conversation_id,
+      speed_test: request.speed_test,
+      concurrency: request.concurrency,
     }
 
     const response = await fetch(`${this.baseURL}/chat/compare`, {
@@ -255,7 +259,7 @@ export class ApiClient {
     }
   }
 
-  async *streamCompareResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{model1_response?: string, model2_response?: string, speed_test_results?: any}, void, unknown> {
+  async *streamCompareResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{model1_response?: string, model2_response?: string, speed_test_results?: any, speed_test_error?: string}, void, unknown> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
 
@@ -284,10 +288,16 @@ export class ApiClient {
                 } else if (modelIndex === 1) {
                   yield { model2_response: parsed.content }
                 }
+              } else if (parsed.type === 'speed_test_results') {
+                // Handle speed test results from the backend
+                yield { speed_test_results: parsed.results }
               } else if (parsed.type === 'comparison_done') {
                 return
               } else if (parsed.type === 'error') {
                 throw new Error(parsed.error || 'Unknown error')
+              } else if (parsed.type === 'speed_test_error') {
+                console.error('Speed test error:', parsed.error)
+                yield { speed_test_error: parsed.error }
               }
             } catch (e) {
               console.warn('Failed to parse SSE data:', data)

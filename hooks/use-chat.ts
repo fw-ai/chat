@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import type { Message, ChatModel, ChatState } from "@/types/chat"
 import { apiClient } from "@/lib/api-client"
+import { parseThinkingContent } from "@/lib/thinking-parser"
 
 export function useChat(model?: ChatModel) {
   const [state, setState] = useState<ChatState>({
@@ -62,12 +63,22 @@ export function useChat(model?: ChatModel) {
         })
 
         let fullContent = ""
+        const startTime = Date.now()
         for await (const chunk of apiClient.streamResponse(stream)) {
           fullContent += chunk
+          const parsed = parseThinkingContent(fullContent, startTime)
+          
           setState((prev) => ({
             ...prev,
             messages: prev.messages.map((msg) =>
-              msg.id === assistantMessage.id ? { ...msg, content: fullContent } : msg,
+              msg.id === assistantMessage.id 
+                ? { 
+                    ...msg, 
+                    content: parsed.content,
+                    thinking: parsed.thinking,
+                    thinkingTime: parsed.thinkingTime,
+                  } 
+                : msg,
             ),
           }))
         }

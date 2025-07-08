@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Copy, AlertCircle } from "lucide-react"
 import { useState } from "react"
 import Image from "next/image"
+import { ThinkingDisplay } from "@/components/thinking-display"
 
 interface MessageProps {
   message: Message
@@ -64,6 +65,14 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
           )}
           <span className="text-xs text-muted-foreground">{message.timestamp.toLocaleTimeString()}</span>
         </div>
+
+        {message.thinking && (
+          <ThinkingDisplay 
+            thinking={message.thinking} 
+            thinkingTime={message.thinkingTime} 
+            isStreaming={message.isStreaming}
+          />
+        )}
 
         <div className="prose prose-sm max-w-none">
           {message.error ? (

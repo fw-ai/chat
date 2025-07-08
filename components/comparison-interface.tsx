@@ -60,7 +60,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model1_rps || 0}
+                  rps={comparisonChat.speedTestResults?.model1_aggregate_tps || 0}
                   label={leftModel?.name || 'Model 1'}
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
@@ -81,7 +81,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   <div className="text-center">
                     <p className="text-sm mb-1">Responses from</p>
                     <p className="font-medium">{leftModel?.name || 'Model 1'}</p>
-                    <p className="text-xs text-muted-foreground mt-1">({leftModel?.provider || 'Loading...'})</p>
                   </div>
                 </div>
               ) : (
@@ -121,7 +120,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model2_rps || 0}
+                  rps={comparisonChat.speedTestResults?.model2_aggregate_tps || 0}
                   label={rightModel?.name || 'Model 2'}
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
@@ -142,7 +141,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   <div className="text-center">
                     <p className="text-sm mb-1">Responses from</p>
                     <p className="font-medium">{rightModel?.name || 'Model 2'}</p>
-                    <p className="text-xs text-muted-foreground mt-1">({rightModel?.provider || 'Loading...'})</p>
                   </div>
                 </div>
               ) : (
@@ -171,6 +169,18 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             leftModelName={leftModel?.name || 'Model 1'}
             rightModelName={rightModel?.name || 'Model 2'}
           />
+        </div>
+      )}
+
+      {/* Speed Test Error */}
+      {speedTestEnabled && comparisonChat.speedTestError && (
+        <div className="px-4">
+          <div className="p-4 bg-destructive/10 text-destructive text-sm border border-destructive/20 rounded-md">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Speed Test Error:</span>
+              <span>{comparisonChat.speedTestError}</span>
+            </div>
+          </div>
         </div>
       )}
 
