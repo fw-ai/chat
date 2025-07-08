@@ -7,7 +7,6 @@ import { ModelSelector } from "@/components/model-selector"
 import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
-import { SpeedTestResultsComponent } from "@/components/speed-test-results"
 import { TpsMetric } from "@/components/tps-metric"
 import { RpsMetric } from "@/components/rps-metric"
 import { TtftMetric } from "@/components/ttft-metric"
@@ -50,28 +49,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             />
           </div>
 
-          {/* Left speed test indicators */}
-          {speedTestEnabled && (
-            <div className="px-2 py-1 bg-muted/10 border-b">
-              <div className="grid grid-cols-3 gap-1">
-                <TpsMetric
-                  tps={comparisonChat.speedTestResults?.model1_tps || 0}
-                  label={leftModel?.name || 'Model 1'}
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-                <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model1_aggregate_tps || 0}
-                  label={leftModel?.name || 'Model 1'}
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-                <TtftMetric
-                  ttft={comparisonChat.speedTestResults?.model1_ttft || 0}
-                  label={leftModel?.name || 'Model 1'}
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Left chat area */}
           <div className="flex-1 flex flex-col">
@@ -110,28 +87,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             />
           </div>
 
-          {/* Right speed test indicators */}
-          {speedTestEnabled && (
-            <div className="px-2 py-1 bg-muted/10 border-b">
-              <div className="grid grid-cols-3 gap-1">
-                <TpsMetric
-                  tps={comparisonChat.speedTestResults?.model2_tps || 0}
-                  label={rightModel?.name || 'Model 2'}
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-                <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model2_aggregate_tps || 0}
-                  label={rightModel?.name || 'Model 2'}
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-                <TtftMetric
-                  ttft={comparisonChat.speedTestResults?.model2_ttft || 0}
-                  label={rightModel?.name || 'Model 2'}
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Right chat area */}
           <div className="flex-1 flex flex-col">
@@ -161,16 +116,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
       </div>
 
 
-      {/* Speed Test Results */}
-      {speedTestEnabled && comparisonChat.speedTestResults && (
-        <div className="px-4">
-          <SpeedTestResultsComponent
-            results={comparisonChat.speedTestResults}
-            leftModelName={leftModel?.name || 'Model 1'}
-            rightModelName={rightModel?.name || 'Model 2'}
-          />
-        </div>
-      )}
 
       {/* Speed Test Error */}
       {speedTestEnabled && comparisonChat.speedTestError && (
@@ -179,6 +124,54 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
             <div className="flex items-center gap-2">
               <span className="font-medium">Speed Test Error:</span>
               <span>{comparisonChat.speedTestError}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Speed Test Metrics */}
+      {speedTestEnabled && (
+        <div className="px-4 py-2 bg-muted/10 border-t">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">{leftModel?.name || 'Model 1'}</div>
+              <div className="grid grid-cols-3 gap-2">
+                <TpsMetric
+                  tps={comparisonChat.speedTestResults?.model1_tps || 0}
+                  label="TPS"
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+                <RpsMetric
+                  rps={comparisonChat.speedTestResults?.model1_aggregate_tps || 0}
+                  label="RPS"
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+                <TtftMetric
+                  ttft={comparisonChat.speedTestResults?.model1_ttft || 0}
+                  label="TTFT"
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">{rightModel?.name || 'Model 2'}</div>
+              <div className="grid grid-cols-3 gap-2">
+                <TpsMetric
+                  tps={comparisonChat.speedTestResults?.model2_tps || 0}
+                  label="TPS"
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+                <RpsMetric
+                  rps={comparisonChat.speedTestResults?.model2_aggregate_tps || 0}
+                  label="RPS"
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+                <TtftMetric
+                  ttft={comparisonChat.speedTestResults?.model2_ttft || 0}
+                  label="TTFT"
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+              </div>
             </div>
           </div>
         </div>

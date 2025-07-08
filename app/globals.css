@@ -2,6 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Syntax highlighting styles */
+@layer base {
+  .hljs {
+    display: block;
+    overflow-x: auto;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+  }
+  
+  .hljs-comment,
+  .hljs-quote {
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+  }
+  
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-type,
+  .hljs-addition {
+    color: hsl(217, 71%, 53%);
+  }
+  
+  .hljs-string,
+  .hljs-doctag {
+    color: hsl(142, 52%, 39%);
+  }
+  
+  .hljs-title,
+  .hljs-section,
+  .hljs-selector-id {
+    color: hsl(221, 87%, 60%);
+  }
+  
+  .hljs-subst {
+    color: hsl(var(--foreground));
+  }
+  
+  .hljs-number,
+  .hljs-built_in,
+  .hljs-builtin-name,
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-attribute {
+    color: hsl(5, 74%, 59%);
+  }
+  
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-link,
+  .hljs-meta,
+  .hljs-selector-attr,
+  .hljs-selector-pseudo {
+    color: hsl(35, 99%, 36%);
+  }
+  
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  
+  .hljs-strong {
+    font-weight: bold;
+  }
+  
+  .hljs-deletion {
+    color: hsl(var(--destructive));
+  }
+  
+  .hljs-formula {
+    color: hsl(var(--muted-foreground));
+  }
+  
+  /* Dark mode adjustments */
+  .dark .hljs-keyword,
+  .dark .hljs-selector-tag,
+  .dark .hljs-literal,
+  .dark .hljs-type,
+  .dark .hljs-addition {
+    color: hsl(207, 82%, 66%);
+  }
+  
+  .dark .hljs-string,
+  .dark .hljs-doctag {
+    color: hsl(114, 31%, 68%);
+  }
+  
+  .dark .hljs-title,
+  .dark .hljs-section,
+  .dark .hljs-selector-id {
+    color: hsl(210, 71%, 75%);
+  }
+  
+  .dark .hljs-number,
+  .dark .hljs-built_in,
+  .dark .hljs-builtin-name,
+  .dark .hljs-variable,
+  .dark .hljs-template-variable,
+  .dark .hljs-attribute {
+    color: hsl(29, 54%, 61%);
+  }
+  
+  .dark .hljs-symbol,
+  .dark .hljs-bullet,
+  .dark .hljs-link,
+  .dark .hljs-meta,
+  .dark .hljs-selector-attr,
+  .dark .hljs-selector-pseudo {
+    color: hsl(41, 92%, 58%);
+  }
+}
+
 body {
   font-family: Arial, Helvetica, sans-serif;
 }

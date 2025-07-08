@@ -6,6 +6,7 @@ import { Copy, AlertCircle } from "lucide-react"
 import { useState } from "react"
 import Image from "next/image"
 import { ThinkingDisplay } from "@/components/thinking-display"
+import { MarkdownRenderer } from "@/components/markdown-renderer"
 
 interface MessageProps {
   message: Message
@@ -74,15 +75,15 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
           />
         )}
 
-        <div className="prose prose-sm max-w-none">
+        <div className="max-w-none">
           {message.error ? (
             <div className="flex items-center gap-2 text-destructive">
               <AlertCircle size={16} />
               <span>{message.error}</span>
             </div>
           ) : (
-            <div className="whitespace-pre-wrap">
-              {message.content}
+            <div className="relative">
+              <MarkdownRenderer content={message.content} />
               {message.isStreaming && <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse" />}
             </div>
           )}
