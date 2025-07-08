@@ -8,6 +8,7 @@ export interface Message {
   error?: string
   thinking?: string
   thinkingTime?: number
+  sessionId?: string
 }
 
 export interface ChatModel {
@@ -20,6 +21,8 @@ export interface ChatState {
   messages: Message[]
   isLoading: boolean
   error: string | null
+  sessionId?: string
+  lastModelHash?: string
 }
 
 export interface SpeedTestResults {
@@ -51,4 +54,6 @@ export interface ComparisonChatState {
   rightModel: ChatModel
   speedTestResults?: SpeedTestResults
   speedTestError?: string
+  sessionId?: string
+  lastModelHash?: string
 }

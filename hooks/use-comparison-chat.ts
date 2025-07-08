@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import type { Message, ChatModel, ComparisonChatState, SpeedTestResults } from "@/types/chat"
 import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
+import { sessionStateManager } from "@/lib/session-state"
 
 export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1) {
   const [state, setState] = useState<ComparisonChatState>({
@@ -11,6 +12,8 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     rightChat: { messages: [], isLoading: false, error: null },
     leftModel: leftModel || { id: "", name: "", provider: "" },
     rightModel: rightModel || { id: "", name: "", provider: "" },
+    sessionId: undefined,
+    lastModelHash: undefined,
   })
   const [conversationId, setConversationId] = useState<string | undefined>()
 
@@ -24,27 +27,86 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     scrollToBottom()
   }, [state.leftChat.messages, state.rightChat.messages, scrollToBottom])
 
+  // Handle model changes and session management
   useEffect(() => {
-    if (leftModel) {
-      setState((prev) => ({ ...prev, leftModel }))
-    }
-  }, [leftModel])
+    if (!leftModel || !rightModel) return
 
-  useEffect(() => {
-    if (rightModel) {
-      setState((prev) => ({ ...prev, rightModel }))
+    // Create new session if none exists
+    if (!state.sessionId) {
+      const session = sessionStateManager.createComparisonSession(leftModel, rightModel, conversationId)
+      setState(prev => ({
+        ...prev,
+        sessionId: session.id,
+        lastModelHash: session.modelHash,
+        leftModel,
+        rightModel,
+      }))
+      return
     }
-  }, [rightModel])
+
+    // Handle model change
+    const result = sessionStateManager.handleComparisonModelChange(
+      state.sessionId,
+      leftModel,
+      rightModel,
+      () => {
+        // Reset callback - clear messages and conversation
+        setState(prev => ({
+          ...prev,
+          leftChat: { messages: [], isLoading: false, error: null },
+          rightChat: { messages: [], isLoading: false, error: null },
+          speedTestResults: undefined,
+          speedTestError: undefined,
+        }))
+        setConversationId(undefined)
+      }
+    )
+
+    // Update session ID and model hash if changed
+    if (result.sessionId !== state.sessionId) {
+      setState(prev => ({
+        ...prev,
+        sessionId: result.sessionId,
+      }))
+    }
+
+    // Update model hash and models
+    const session = sessionStateManager.getSessionState(result.sessionId)
+    if (session && session.modelHash !== state.lastModelHash) {
+      setState(prev => ({
+        ...prev,
+        lastModelHash: session.modelHash,
+        leftModel,
+        rightModel,
+      }))
+    }
+  }, [leftModel, rightModel, state.sessionId, state.lastModelHash, conversationId])
+
+  // Handle page refresh detection
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (state.sessionId) {
+        sessionStateManager.resetSession(state.sessionId, 'page_refresh')
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [state.sessionId])
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || !leftModel || !rightModel) return
+      if (!content.trim() || !leftModel || !rightModel || !state.sessionId) return
+
+      // Update session activity
+      sessionStateManager.updateSessionActivity(state.sessionId)
 
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
         content: content.trim(),
         timestamp: new Date(),
+        sessionId: state.sessionId,
       }
 
       setState((prev) => ({
@@ -70,6 +132,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         timestamp: new Date(),
         model: leftModel.name,
         isStreaming: true,
+        sessionId: state.sessionId,
       }
 
       const rightAssistantMessage: Message = {
@@ -79,6 +142,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         timestamp: new Date(),
         model: rightModel.name,
         isStreaming: true,
+        sessionId: state.sessionId,
       }
 
       setState((prev) => ({
@@ -204,7 +268,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         }))
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId],
   )
 
   const clearChat = useCallback(() => {
@@ -216,7 +280,12 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       speedTestError: undefined,
     }))
     setConversationId(undefined)
-  }, [])
+    
+    // Reset session if it exists
+    if (state.sessionId) {
+      sessionStateManager.resetSession(state.sessionId, 'manual_clear')
+    }
+  }, [state.sessionId])
 
   return {
     ...state,
