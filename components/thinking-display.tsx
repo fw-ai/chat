@@ -14,9 +14,9 @@ export function ThinkingDisplay({ thinking, thinkingTime, isStreaming }: Thinkin
   const [isExpanded, setIsExpanded] = useState(false)
 
   const formatTime = (seconds?: number, isComplete?: boolean) => {
-    if (!seconds) return "thinking..."
-    if (isComplete === false) return "thinking..."
-    return `${seconds.toFixed(1)}s`
+    if (!seconds) return ""
+    if (isComplete === false) return ""
+    return `thinking time: ${seconds.toFixed(1)}s`
   }
 
   // If streaming and we have thinking content, it's likely still in progress
@@ -32,7 +32,7 @@ export function ThinkingDisplay({ thinking, thinkingTime, isStreaming }: Thinkin
       >
         {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <Clock size={12} />
-        <span>Thinking {formatTime(thinkingTime, isThinkingComplete)}</span>
+        <span>{isThinkingComplete ? formatTime(thinkingTime, isThinkingComplete) : "Pondering..."}</span>
         {!isThinkingComplete && (
           <div className="inline-block ml-1">
             <div className="flex space-x-1">

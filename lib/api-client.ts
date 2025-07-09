@@ -2,23 +2,27 @@ import type { ChatModel } from "@/types/chat"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
+export interface ChatMessage {
+  role: string
+  content: string
+}
+
 export interface ChatRequest {
-  message: string
+  messages: ChatMessage[]
   model: string
   conversation_id?: string
 }
 
 // Internal interface for backend API
 interface BackendChatRequest {
-  message: string
+  messages: ChatMessage[]
   model_key: string
   conversation_id?: string
-  max_tokens?: number
   temperature?: number
 }
 
 export interface CompareRequest {
-  message: string
+  messages: ChatMessage[]
   model1: string
   model2: string
   conversation_id?: string
@@ -28,10 +32,9 @@ export interface CompareRequest {
 
 // Internal interface for backend API
 interface BackendCompareRequest {
-  message: string
+  messages: ChatMessage[]
   model_keys: string[]
   comparison_id?: string
-  max_tokens?: number
   temperature?: number
   speed_test?: boolean
   concurrency?: number
@@ -110,7 +113,7 @@ export class ApiClient {
   async sendSingleChat(request: ChatRequest): Promise<ReadableStream<Uint8Array>> {
     // Transform request format for backend
     const backendRequest: BackendChatRequest = {
-      message: request.message,
+      messages: request.messages,
       model_key: request.model,
       conversation_id: request.conversation_id,
     }
@@ -165,7 +168,7 @@ export class ApiClient {
   async sendCompareChat(request: CompareRequest): Promise<ReadableStream<Uint8Array>> {
     // Transform request format for backend
     const backendRequest: BackendCompareRequest = {
-      message: request.message,
+      messages: request.messages,
       model_keys: [request.model1, request.model2],
       comparison_id: request.conversation_id,
       speed_test: request.speed_test,

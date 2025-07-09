@@ -36,7 +36,7 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
           <div className="flex items-center justify-end gap-2">
             <span className="text-xs text-muted-foreground">{message.timestamp.toLocaleTimeString()}</span>
           </div>
-          <div className="prose prose-sm max-w-none bg-primary text-primary-foreground p-3 rounded-lg">
+          <div className="prose prose-sm max-w-none bg-fireworks-purple text-white p-3 rounded-lg">
             <div className="whitespace-pre-wrap text-white">
               {message.content}
             </div>

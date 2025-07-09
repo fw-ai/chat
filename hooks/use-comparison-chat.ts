@@ -158,11 +158,17 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       }))
 
       try {
+        // Send only the new user message - backend will manage conversation history
+        const messages = [{
+          role: userMessage.role,
+          content: userMessage.content
+        }]
+
         const stream = await apiClient.sendCompareChat({
-          message: content.trim(),
+          messages,
           model1: leftModel.id,
           model2: rightModel.id,
-          conversation_id: conversationId,
+          conversation_id: state.sessionId, // Use session ID for conversation continuity
           speed_test: speedTestEnabled,
           concurrency: speedTestEnabled ? concurrency : undefined,
         })

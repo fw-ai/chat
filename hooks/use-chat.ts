@@ -125,10 +125,16 @@ export function useChat(model?: ChatModel) {
       }))
 
       try {
+        // Send only the new user message - backend will manage conversation history
+        const messages = [{
+          role: userMessage.role,
+          content: userMessage.content
+        }]
+
         const stream = await apiClient.sendSingleChat({
-          message: content.trim(),
+          messages,
           model: model.id,
-          conversation_id: conversationId,
+          conversation_id: state.sessionId, // Use session ID for conversation continuity
         })
 
         let fullContent = ""
