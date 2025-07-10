@@ -168,7 +168,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           messages,
           model1: leftModel.id,
           model2: rightModel.id,
-          conversation_id: state.sessionId, // Use session ID for conversation continuity
+          conversation_id: state.sessionId || conversationId, // Use session ID or fallback to conversation ID
           speed_test: speedTestEnabled,
           concurrency: speedTestEnabled ? concurrency : undefined,
         })

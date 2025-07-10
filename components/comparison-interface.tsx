@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useComparisonChat } from "@/hooks/use-comparison-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -11,6 +11,7 @@ import { TpsMetric } from "@/components/tps-metric"
 import { RpsMetric } from "@/components/rps-metric"
 import { TtftMetric } from "@/components/ttft-metric"
 import { Trash2 } from "lucide-react"
+import { useModels } from "@/hooks/use-models"
 
 interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
@@ -20,6 +21,17 @@ interface ComparisonInterfaceProps {
 export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 }: ComparisonInterfaceProps) {
   const [leftModel, setLeftModel] = useState<ChatModel | undefined>()
   const [rightModel, setRightModel] = useState<ChatModel | undefined>()
+  const { models, isLoading: modelsLoading } = useModels()
+
+  // Auto-select first and second models when models load
+  useEffect(() => {
+    if (!leftModel && !rightModel && models.length > 0 && !modelsLoading) {
+      setLeftModel(models[0])
+      if (models.length > 1) {
+        setRightModel(models[1])
+      }
+    }
+  }, [models, modelsLoading, leftModel, rightModel])
 
   const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency)
 
@@ -142,7 +154,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model1_aggregate_tps || 0}
+                  rps={comparisonChat.speedTestResults?.model1_rps || 0}
                   label="RPS"
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
@@ -162,7 +174,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model2_aggregate_tps || 0}
+                  rps={comparisonChat.speedTestResults?.model2_rps || 0}
                   label="RPS"
                   isLoading={comparisonChat.rightChat.isLoading}
                 />

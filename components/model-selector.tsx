@@ -33,20 +33,14 @@ export function ModelSelector({ selectedModel, onModelChange, className }: Model
       <SelectTrigger className={className}>
         <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"}>
           {selectedModel && (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{selectedModel.name}</span>
-              <span className="text-xs text-muted-foreground">({selectedModel.provider})</span>
-            </div>
+            <span className="font-medium">{selectedModel.name}</span>
           )}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id}>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{model.name}</span>
-              <span className="text-xs text-muted-foreground">({model.provider})</span>
-            </div>
+            <span className="font-medium">{model.name}</span>
           </SelectItem>
         ))}
       </SelectContent>

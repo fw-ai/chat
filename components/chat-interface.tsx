@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useChat } from "@/hooks/use-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -9,9 +9,18 @@ import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Trash2 } from "lucide-react"
+import { useModels } from "@/hooks/use-models"
 
 export function ChatInterface() {
   const [selectedModel, setSelectedModel] = useState<ChatModel | undefined>()
+  const { models, isLoading: modelsLoading } = useModels()
+
+  // Auto-select first model when models load
+  useEffect(() => {
+    if (!selectedModel && models.length > 0 && !modelsLoading) {
+      setSelectedModel(models[0])
+    }
+  }, [models, modelsLoading, selectedModel])
   const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel)
 
   const handleSendMessage = (message: string) => {
