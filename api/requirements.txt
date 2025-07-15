@@ -1,7 +1,0 @@
-fireworks-ai
-fastapi
-uvicorn
-python-dotenv
-httpx
-pydantic
-PyYAML
