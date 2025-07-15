@@ -6,8 +6,9 @@ from pathlib import Path
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-# Now import the app
+# Now import the FastAPI app
 from src.routes.api_routes import app
+from mangum import Mangum
 
-# Export the FastAPI app for Vercel
-handler = app
+# Create the Vercel handler using Mangum
+handler = Mangum(app, lifespan="off")
