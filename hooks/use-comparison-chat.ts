@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import type { Message, ChatModel, ComparisonChatState, SpeedTestResults } from "@/types/chat"
+import type { Message, ChatModel, ComparisonChatState, SpeedTestResults, LiveMetrics } from "@/types/chat"
 import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
@@ -57,6 +57,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           rightChat: { messages: [], isLoading: false, error: null },
           speedTestResults: undefined,
           speedTestError: undefined,
+          liveMetrics: undefined,
         }))
         setConversationId(undefined)
       }
@@ -177,6 +178,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         let rightContent = ""
         let speedTestResults: SpeedTestResults | undefined
         let speedTestError: string | undefined
+        let liveMetrics: LiveMetrics | undefined
         const startTime = Date.now()
         
         for await (const data of apiClient.streamCompareResponse(stream)) {
@@ -225,6 +227,14 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           }
           if (data.speed_test_error) {
             speedTestError = data.speed_test_error
+          }
+          if (data.live_metrics) {
+            liveMetrics = data.live_metrics
+            // Update state with live metrics immediately
+            setState((prev) => ({
+              ...prev,
+              liveMetrics: liveMetrics,
+            }))
           }
         }
 
@@ -284,6 +294,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       rightChat: { messages: [], isLoading: false, error: null },
       speedTestResults: undefined,
       speedTestError: undefined,
+      liveMetrics: undefined,
     }))
     setConversationId(undefined)
     

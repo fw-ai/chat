@@ -262,7 +262,7 @@ export class ApiClient {
     }
   }
 
-  async *streamCompareResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{model1_response?: string, model2_response?: string, speed_test_results?: any, speed_test_error?: string}, void, unknown> {
+  async *streamCompareResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{model1_response?: string, model2_response?: string, speed_test_results?: any, speed_test_error?: string, live_metrics?: any}, void, unknown> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
 
@@ -294,6 +294,9 @@ export class ApiClient {
               } else if (parsed.type === 'speed_test_results') {
                 // Handle speed test results from the backend
                 yield { speed_test_results: parsed.results }
+              } else if (parsed.type === 'live_metrics') {
+                // Handle live metrics updates from the backend
+                yield { live_metrics: parsed.metrics }
               } else if (parsed.type === 'comparison_done') {
                 return
               } else if (parsed.type === 'error') {

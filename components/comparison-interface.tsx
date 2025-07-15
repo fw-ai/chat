@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { TpsMetric } from "@/components/tps-metric"
 import { RpsMetric } from "@/components/rps-metric"
 import { TtftMetric } from "@/components/ttft-metric"
+import { CompletedRequestsMetric } from "@/components/completed-requests-metric"
 import { Trash2 } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 
@@ -147,40 +148,52 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">{leftModel?.name || 'Model 1'}</div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <TpsMetric
-                  tps={comparisonChat.speedTestResults?.model1_tps || 0}
+                  tps={comparisonChat.liveMetrics?.model1_live_tps || comparisonChat.speedTestResults?.model1_tps || 0}
                   label="TPS"
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model1_rps || 0}
+                  rps={comparisonChat.liveMetrics?.model1_live_rps || comparisonChat.speedTestResults?.model1_rps || 0}
                   label="RPS"
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
                 <TtftMetric
-                  ttft={comparisonChat.speedTestResults?.model1_ttft || 0}
+                  ttft={comparisonChat.liveMetrics?.model1_live_ttft || comparisonChat.speedTestResults?.model1_ttft || 0}
                   label="TTFT"
+                  isLoading={comparisonChat.leftChat.isLoading}
+                />
+                <CompletedRequestsMetric
+                  completedRequests={comparisonChat.liveMetrics?.model1_completed_requests || comparisonChat.speedTestResults?.model1_completed_requests || 0}
+                  totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
+                  label="REQS"
                   isLoading={comparisonChat.leftChat.isLoading}
                 />
               </div>
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">{rightModel?.name || 'Model 2'}</div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <TpsMetric
-                  tps={comparisonChat.speedTestResults?.model2_tps || 0}
+                  tps={comparisonChat.liveMetrics?.model2_live_tps || comparisonChat.speedTestResults?.model2_tps || 0}
                   label="TPS"
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <RpsMetric
-                  rps={comparisonChat.speedTestResults?.model2_rps || 0}
+                  rps={comparisonChat.liveMetrics?.model2_live_rps || comparisonChat.speedTestResults?.model2_rps || 0}
                   label="RPS"
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
                 <TtftMetric
-                  ttft={comparisonChat.speedTestResults?.model2_ttft || 0}
+                  ttft={comparisonChat.liveMetrics?.model2_live_ttft || comparisonChat.speedTestResults?.model2_ttft || 0}
                   label="TTFT"
+                  isLoading={comparisonChat.rightChat.isLoading}
+                />
+                <CompletedRequestsMetric
+                  completedRequests={comparisonChat.liveMetrics?.model2_completed_requests || comparisonChat.speedTestResults?.model2_completed_requests || 0}
+                  totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
+                  label="REQS"
                   isLoading={comparisonChat.rightChat.isLoading}
                 />
               </div>

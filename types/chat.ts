@@ -25,6 +25,18 @@ export interface ChatState {
   lastModelHash?: string
 }
 
+export interface LiveMetrics {
+  model1_completed_requests: number
+  model2_completed_requests: number
+  total_requests: number
+  model1_live_tps: number
+  model2_live_tps: number
+  model1_live_ttft: number
+  model2_live_ttft: number
+  model1_live_rps: number
+  model2_live_rps: number
+}
+
 export interface SpeedTestResults {
   model1_tps: number
   model2_tps: number
@@ -54,6 +66,7 @@ export interface ComparisonChatState {
   rightModel: ChatModel
   speedTestResults?: SpeedTestResults
   speedTestError?: string
+  liveMetrics?: LiveMetrics
   sessionId?: string
   lastModelHash?: string
 }
