@@ -1,0 +1,13 @@
+[project]
+name = "firechat-arena"
+version = "0.1.0"
+description = "Backend for Firechat Application"
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
