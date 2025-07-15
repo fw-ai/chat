@@ -23,7 +23,7 @@ models:
     display_name: "DeepSeek R1 (05/28)"
 
   qwen3_235b:
-    id: "qwen3-235b-a22b"
+    id: "accounts/fireworks/models/qwen3-235b-a22b"
     name: "Qwen3 235B"
     display_name: "Qwen3 235B"
     deployment_type: "serverless"
@@ -39,7 +39,6 @@ models:
     name: "Llama 70B"
     display_name: "Llama 70B"
     deployment_type: "serverless"
-
 
   llama_scout:
     id: "accounts/fireworks/models/llama4-scout-instruct-basic"
