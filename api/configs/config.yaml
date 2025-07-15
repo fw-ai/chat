@@ -58,13 +58,5 @@ defaults:
   stream: true
   timeout: 30
 
-api:
-  max_concurrent_requests: 50
-  rate_limit_per_minute: 1000
+base_url: https://api.fireworks.ai/inference/v1
 
-
-chat:
-  max_history_length: 10
-  max_message_length: 10000
-  session_timeout_hours: 1
-  cleanup_interval_minutes: 10

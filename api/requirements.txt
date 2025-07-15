@@ -1,7 +1,6 @@
-fireworks-ai
 fastapi
+aiohttp
 uvicorn
 python-dotenv
-httpx
 pydantic
 PyYAML
