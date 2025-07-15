@@ -1,7 +1,32 @@
 {
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "api/configs/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/models",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/models/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/chat/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/sessions",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/sessions/(.*)",
       "destination": "/api/index.py"
     }
   ]
