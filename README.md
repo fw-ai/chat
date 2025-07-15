@@ -165,10 +165,6 @@ When running locally, visit:
 4. Run tests: `make test && make lint`
 5. Submit a pull request
 
-## License
-
-This project is licensed under the MIT License.
-
 ## Troubleshooting
 
 ### Common Issues
@@ -190,10 +186,3 @@ This project is licensed under the MIT License.
 - Verify your Fireworks API key is valid
 - Check model availability in `api/configs/config.yaml`
 - Review backend logs for detailed errors
-
-### Support
-
-For issues and questions:
-1. Check the troubleshooting section above
-2. Review the API documentation at `/docs`
-3. Create an issue in the repository

@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/**": {
-      "runtime": "python3.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
