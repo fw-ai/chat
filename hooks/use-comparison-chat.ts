@@ -124,6 +124,10 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           isLoading: true,
           error: null,
         },
+        // Reset speed test metrics for the new conversation turn
+        speedTestResults: undefined,
+        speedTestError: undefined,
+        liveMetrics: undefined,
       }))
 
       const leftAssistantMessage: Message = {

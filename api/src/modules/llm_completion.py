@@ -162,8 +162,28 @@ class FireworksStreamer:
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
-        if self.session is None:
-            self.session = aiohttp.ClientSession()
+        # Check if session exists and is not closed
+        if self.session is None or self.session.closed:
+            # Clean up old session if it exists
+            if self.session and not self.session.closed:
+                try:
+                    await self.session.close()
+                except:
+                    pass
+            
+            # Create new session
+            try:
+                self.session = aiohttp.ClientSession()
+            except RuntimeError as e:
+                if "event loop is closed" in str(e):
+                    # Event loop is closed, create a new one (serverless environment)
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    self.session = aiohttp.ClientSession()
+                else:
+                    raise
+        
         return self.session
 
     def _prepare_llm_request(
@@ -273,8 +293,21 @@ class FireworksStreamer:
             is_chat: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Core streaming logic shared between completion types"""
+        session = None
         try:
-            session = await self._get_session()
+            # Create a fresh session for each request in serverless environment
+            try:
+                session = aiohttp.ClientSession()
+            except RuntimeError as e:
+                if "event loop is closed" in str(e):
+                    # Event loop is closed, create a new one (serverless environment)
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    session = aiohttp.ClientSession()
+                else:
+                    raise
+            
             headers = self._prepare_headers()
             url = f"{self.base_url}/{endpoint}"
 
@@ -305,6 +338,13 @@ class FireworksStreamer:
                 callback("", stats)
 
             raise e
+        finally:
+            # Clean up session
+            if session and not session.closed:
+                try:
+                    await session.close()
+                except:
+                    pass
 
     async def stream_completion(
             self,
@@ -391,6 +431,7 @@ class FireworksBenchmark:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.config = FireworksConfig()
+        self.streamer = FireworksStreamer(api_key)
 
     async def _execute_single_request(
             self,
