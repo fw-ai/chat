@@ -1,8 +1,6 @@
 {
   "functions": {
-    "api/index.py": {
-      "includeFiles": "api/configs/**"
-    }
+    "api/**": "python3.x"
   },
   "rewrites": [
     {
