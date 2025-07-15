@@ -566,9 +566,5 @@ async def startup_event():
     logger.info("Session cleanup task started")
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "api_routes:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
-    )
+# Note: uvicorn.run removed for Vercel compatibility
+# For local development, run: uvicorn src.routes.api_routes:app --host 0.0.0.0 --port 8000 --reload

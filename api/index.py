@@ -8,7 +8,7 @@ sys.path.insert(0, str(current_dir))
 
 # Now import the FastAPI app
 from src.routes.api_routes import app
-from mangum import Mangum
 
-# Create the Vercel handler using Mangum
-handler = Mangum(app, lifespan="off")
+# Export the FastAPI app for Vercel
+# Vercel expects the ASGI app to be named 'app'
+app = app
