@@ -1,6 +1,8 @@
 {
   "functions": {
-    "api/**": "python3.x"
+    "api/**": {
+      "runtime": "python3.x"
+    }
   },
   "rewrites": [
     {
