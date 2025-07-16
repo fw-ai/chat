@@ -8,7 +8,7 @@ import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Trash2 } from "lucide-react"
+import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 
 export function ChatInterface() {
@@ -62,39 +62,54 @@ export function ChatInterface() {
           {error && <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{error}</div>}
 
           {/* Input area with send and clear buttons */}
-          <div className="flex gap-2 p-4 border-t bg-background">
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              disabled={isLoading}
-              placeholder={`Ask ${selectedModel?.name || 'the model'} anything...`}
-              showSendButton={false}
-            />
-            <Button
-              onClick={() => {
-                const form = document.querySelector("form")
-                if (form) {
-                  const textarea = form.querySelector("textarea") as HTMLTextAreaElement
-                  if (textarea && textarea.value.trim()) {
-                    handleSendMessage(textarea.value)
-                    textarea.value = ""
+          <div className="p-4 border-t bg-background">
+            <div className="flex gap-2 mb-3">
+              <ChatInput
+                onSendMessage={handleSendMessage}
+                disabled={isLoading}
+                placeholder={`Ask ${selectedModel?.name || 'the model'} anything...`}
+                showSendButton={false}
+              />
+              <Button
+                onClick={() => {
+                  const form = document.querySelector("form")
+                  if (form) {
+                    const textarea = form.querySelector("textarea") as HTMLTextAreaElement
+                    if (textarea && textarea.value.trim()) {
+                      handleSendMessage(textarea.value)
+                      textarea.value = ""
+                    }
                   }
-                }
-              }}
-              disabled={isLoading}
-              className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
-              style={{ backgroundColor: '#6b2aff' }}
-            >
-              Send
-            </Button>
-            <Button
-              onClick={clearChat}
-              disabled={messages.length === 0}
-              variant="outline"
-              size="default"
-              className="self-end bg-transparent"
-            >
-              <Trash2 size={16} />
-            </Button>
+                }}
+                disabled={isLoading}
+                className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
+                style={{ backgroundColor: '#6b2aff' }}
+              >
+                Send
+              </Button>
+              <Button
+                onClick={clearChat}
+                disabled={messages.length === 0}
+                variant="outline"
+                size="default"
+                className="self-end bg-transparent"
+              >
+                <Trash2 size={16} />
+              </Button>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Info size={14} />
+              <span>This app is running on our serverless platform for best performance{" "}
+                <a 
+                  href="https://fireworks.ai/contact" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  contact us
+                </a>
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>

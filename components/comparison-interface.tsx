@@ -11,7 +11,7 @@ import { TpsMetric } from "@/components/tps-metric"
 import { RpsMetric } from "@/components/rps-metric"
 import { TtftMetric } from "@/components/ttft-metric"
 import { CompletedRequestsMetric } from "@/components/completed-requests-metric"
-import { Trash2 } from "lucide-react"
+import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 
 interface ComparisonInterfaceProps {
@@ -203,39 +203,54 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
       )}
 
       {/* Shared input at the bottom with send and clear buttons */}
-      <div className="flex gap-2 p-4 border-t bg-background">
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          disabled={isLoading}
-          placeholder="Send a message to compare responses from both models..."
-          showSendButton={false}
-        />
-        <Button
-          onClick={() => {
-            const form = document.querySelector("form")
-            if (form) {
-              const textarea = form.querySelector("textarea") as HTMLTextAreaElement
-              if (textarea && textarea.value.trim()) {
-                handleSendMessage(textarea.value)
-                textarea.value = ""
+      <div className="p-4 border-t bg-background">
+        <div className="flex gap-2 mb-3">
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            disabled={isLoading}
+            placeholder="Send a message to compare responses from both models..."
+            showSendButton={false}
+          />
+          <Button
+            onClick={() => {
+              const form = document.querySelector("form")
+              if (form) {
+                const textarea = form.querySelector("textarea") as HTMLTextAreaElement
+                if (textarea && textarea.value.trim()) {
+                  handleSendMessage(textarea.value)
+                  textarea.value = ""
+                }
               }
-            }
-          }}
-          disabled={isLoading}
-          className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
-          style={{ backgroundColor: '#6b2aff' }}
-        >
-          Send
-        </Button>
-        <Button
-          onClick={handleClearChats}
-          disabled={!hasMessages}
-          variant="outline"
-          size="default"
-          className="self-end bg-transparent"
-        >
-          <Trash2 size={16} />
-        </Button>
+            }}
+            disabled={isLoading}
+            className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
+            style={{ backgroundColor: '#6b2aff' }}
+          >
+            Send
+          </Button>
+          <Button
+            onClick={handleClearChats}
+            disabled={!hasMessages}
+            variant="outline"
+            size="default"
+            className="self-end bg-transparent"
+          >
+            <Trash2 size={16} />
+          </Button>
+        </div>
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <Info size={14} />
+          <span>This app is running on our serverless platform for best performance{" "}
+            <a 
+              href="https://fireworks.ai/contact" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              contact us
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   )
