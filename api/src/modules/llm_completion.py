@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+_MAX_TOKENS_PER_REQUEST = 2048
+_DEFAULT_TEMPERATURE = .1
 
 @dataclass
 class StreamingStats:
@@ -197,7 +199,7 @@ class FireworksStreamer:
             request_id = f"{request_prefix}_{int(time.time() * 1000)}"
 
         defaults = self.config.get_defaults()
-        temperature = temperature or defaults.get("temperature", 0.1)
+        temperature = temperature or defaults.get("temperature", _DEFAULT_TEMPERATURE)
         stats = StreamingStats(request_id=request_id, start_time=time.time())
 
         return request_id, temperature, stats
@@ -210,8 +212,8 @@ class FireworksStreamer:
             "Authorization": f"Bearer {self.api_key}",
         }
 
+    @staticmethod
     def _prepare_base_payload(
-            self,
             model_config: Dict[str, Any],
             temperature: float,
             enable_perf_metrics: bool
@@ -221,7 +223,7 @@ class FireworksStreamer:
             "model": model_config["id"],
             "temperature": temperature,
             "stream": True,
-            "max_tokens": model_config.get("max_tokens", 4096),
+            "max_tokens": _MAX_TOKENS_PER_REQUEST,
         }
 
         if enable_perf_metrics:
