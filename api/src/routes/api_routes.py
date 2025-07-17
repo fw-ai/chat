@@ -325,50 +325,79 @@ async def comparison_chat(request: ComparisonChatRequest):
                         enable_perf_metrics=True,
                     )
 
-                # Stream responses from both models
-                active_generators = set(generators.keys())
-
-                while active_generators:
-                    for gen_key in list(active_generators):
-                        try:
-                            chunk = await generators[gen_key].__anext__()
+                # Create concurrent tasks for both model streams
+                async def stream_model(gen_key: str, generator):
+                    """Stream chunks from a single model"""
+                    try:
+                        async for chunk in generator:
                             model_index = int(gen_key.split("_")[1])
                             model_key = request.model_keys[model_index]
 
                             # Track content for session saving
                             assistant_contents[model_index] += chunk
 
-                            yield f"""data: {json.dumps({
-                                'type': 'content',
-                                'model_index': model_index,
-                                'model_key': model_key,
-                                'content': chunk
-                            })}\n\n"""
+                            yield {
+                                "type": "content",
+                                "model_index": model_index,
+                                "model_key": model_key,
+                                "content": chunk,
+                            }
 
-                        except StopAsyncIteration:
-                            active_generators.remove(gen_key)
-                            model_index = int(gen_key.split("_")[1])
+                        # Signal completion
+                        model_index = int(gen_key.split("_")[1])
+                        yield {
+                            "type": "model_done",
+                            "model_index": model_index,
+                            "model_key": request.model_keys[model_index],
+                        }
+                    except Exception as e:
+                        logger.error(f"Error in model {gen_key}: {str(e)}")
+                        model_index = int(gen_key.split("_")[1])
+                        yield {
+                            "type": "error",
+                            "model_index": model_index,
+                            "model_key": request.model_keys[model_index],
+                            "error": str(e),
+                        }
 
-                            yield f"""data: {json.dumps({
-                                'type': 'model_done',
-                                'model_index': model_index,
-                                'model_key': request.model_keys[model_index]
-                            })}\n\n"""
+                # Create concurrent streaming tasks
+                import asyncio
+                from asyncio import Queue
 
-                        except Exception as e:
-                            logger.error(f"Error in model {gen_key}: {str(e)}")
-                            active_generators.remove(gen_key)
-                            model_index = int(gen_key.split("_")[1])
+                output_queue = Queue()
 
-                            yield f"""data: {json.dumps({
-                                'type': 'error',
-                                'model_index': model_index,
-                                'model_key': request.model_keys[model_index],
-                                'error': str(e)
-                            })}\n\n"""
+                async def producer(gen_key: str, generator):
+                    """Producer that feeds model chunks into the queue"""
+                    async for data in stream_model(gen_key, generator):
+                        await output_queue.put(data)
+                    await output_queue.put(None)  # Signal this producer is done
 
-                    await asyncio.sleep(0.001)
+                # Start both producers concurrently
+                tasks = []
+                for gen_key, generator in generators.items():
+                    task = asyncio.create_task(producer(gen_key, generator))
+                    tasks.append(task)
 
+                # Consumer that yields results as they come in
+                completed_producers = 0
+                total_producers = len(tasks)
+
+                while completed_producers < total_producers:
+                    # Wait for the next chunk from any model
+                    data = await output_queue.get()
+
+                    if data is None:
+                        # A producer has finished
+                        completed_producers += 1
+                        continue
+
+                    # Yield the data immediately
+                    yield f"data: {json.dumps(data)}\n\n"
+
+                # Wait for all tasks to complete
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+                # Save assistant responses to session
                 for i, content in enumerate(assistant_contents):
                     if content:
                         session_manager.add_assistant_message(
@@ -391,10 +420,12 @@ async def comparison_chat(request: ComparisonChatRequest):
                             else "Hello, world!"
                         )
 
-                        live_metrics_data = []
+                        # Create async queue for direct metrics streaming
+                        metrics_queue = asyncio.Queue()
 
                         async def live_metrics_callback(metrics: Dict[str, Any]):
-                            live_metrics_data.append(metrics)
+                            # Stream metrics immediately without batching
+                            await metrics_queue.put(metrics)
 
                         # Start the benchmark in the background
                         benchmark_task = asyncio.create_task(
@@ -408,29 +439,34 @@ async def comparison_chat(request: ComparisonChatRequest):
                             )
                         )
 
-                        last_metrics_count = 0
+                        # Stream metrics in real-time as they arrive
                         while not benchmark_task.done():
-                            # Check if we have new metrics to stream
-                            if len(live_metrics_data) > last_metrics_count:
-                                for i in range(
-                                    last_metrics_count, len(live_metrics_data)
-                                ):
-                                    yield f"""data: {json.dumps({
-                                        'type': 'live_metrics',
-                                        'metrics': live_metrics_data[i]
-                                    })}\n\n"""
-                                last_metrics_count = len(live_metrics_data)
+                            try:
+                                # Wait for metrics with a short timeout
+                                metrics = await asyncio.wait_for(
+                                    metrics_queue.get(), timeout=0.05
+                                )
 
-                            # Small delay to prevent tight loop
-                            await asyncio.sleep(0.001)
-
-                        # Stream any final metrics
-                        if len(live_metrics_data) > last_metrics_count:
-                            for i in range(last_metrics_count, len(live_metrics_data)):
+                                # Stream immediately without buffering
                                 yield f"""data: {json.dumps({
                                     'type': 'live_metrics',
-                                    'metrics': live_metrics_data[i]
+                                    'metrics': metrics
                                 })}\n\n"""
+
+                            except asyncio.TimeoutError:
+                                # No metrics available, continue checking if task is done
+                                continue
+
+                        # Stream any remaining metrics after completion
+                        while not metrics_queue.empty():
+                            try:
+                                metrics = metrics_queue.get_nowait()
+                                yield f"""data: {json.dumps({
+                                    'type': 'live_metrics',
+                                    'metrics': metrics
+                                })}\n\n"""
+                            except asyncio.QueueEmpty:
+                                break
 
                         # Wait for benchmark completion and get final results
                         benchmark_results = await benchmark_task
@@ -465,6 +501,10 @@ async def comparison_chat(request: ComparisonChatRequest):
                                 "model1_completed_requests": model1_result.successful_requests,
                                 "model2_completed_requests": model2_result.successful_requests,
                                 "total_requests": model1_result.total_requests,
+                                "model1_total_time": model1_result.total_time
+                                * 1000,  # Convert to ms
+                                "model2_total_time": model2_result.total_time
+                                * 1000,  # Convert to ms
                             }
 
                             # Stream final speed test results
@@ -495,8 +535,12 @@ async def comparison_chat(request: ComparisonChatRequest):
             generate_comparison(),
             media_type="text/event-stream",
             headers={
-                "Cache-Control": "no-cache",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable Nginx buffering
+                "X-Content-Type-Options": "nosniff",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control",
                 "X-Comparison-ID": comparison_id,
             },
         )

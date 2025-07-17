@@ -273,25 +273,67 @@ class FireworksBenchmarkService:
             "model2_live_ttft": 0,
             "model1_live_rps": 0,
             "model2_live_rps": 0,
+            "model1_total_time": 0,
+            "model2_total_time": 0,
         }
+
+        # Track benchmark start times for each model
+        benchmark_start_times = {0: None, 1: None}
+
+        # Track last update times for throttling intermediate metrics
+        last_intermediate_update = {0: 0, 1: 0}
 
         async def model_progress_callback(
             model_index: int, completed: int, metrics: Dict[str, Any]
         ):
             """Update live metrics for a specific model"""
+            current_time = time.time()
+            is_intermediate = metrics.get("is_intermediate", False)
+
+            # Set benchmark start time when first metrics arrive
+            if benchmark_start_times[model_index] is None:
+                benchmark_start_times[model_index] = current_time
+
+            # Calculate total elapsed time for this model
+            total_elapsed_time = current_time - benchmark_start_times[model_index]
+
+            # For intermediate updates, throttle to max 10 updates per second per model
+            if is_intermediate:
+                time_since_last = current_time - last_intermediate_update[model_index]
+                if time_since_last < 0.1:  # 100ms throttle
+                    return
+                last_intermediate_update[model_index] = current_time
+
+            # Update metrics for the specific model
             if model_index == 0:
                 live_metrics["model1_completed_requests"] = completed
                 live_metrics["model1_live_tps"] = metrics.get("current_tps", 0)
-                live_metrics["model1_live_ttft"] = metrics.get("avg_ttft", 0) * 1000
+                live_metrics["model1_live_ttft"] = metrics.get(
+                    "avg_ttft", 0
+                )  # Already in ms
                 live_metrics["model1_live_rps"] = metrics.get("current_rps", 0)
+                live_metrics["model1_total_time"] = (
+                    total_elapsed_time * 1000
+                )  # Convert to ms
             else:
                 live_metrics["model2_completed_requests"] = completed
                 live_metrics["model2_live_tps"] = metrics.get("current_tps", 0)
-                live_metrics["model2_live_ttft"] = metrics.get("avg_ttft", 0) * 1000
+                live_metrics["model2_live_ttft"] = metrics.get(
+                    "avg_ttft", 0
+                )  # Already in ms
                 live_metrics["model2_live_rps"] = metrics.get("current_rps", 0)
+                live_metrics["model2_total_time"] = (
+                    total_elapsed_time * 1000
+                )  # Convert to ms
 
+            # Always stream updates (intermediate or final)
             if live_metrics_callback:
-                await live_metrics_callback(live_metrics.copy())
+                metrics_copy = live_metrics.copy()
+                metrics_copy["update_type"] = (
+                    "intermediate" if is_intermediate else "final"
+                )
+                metrics_copy["model_index"] = model_index
+                await live_metrics_callback(metrics_copy)
 
         # Run benchmarks for each model concurrently
         tasks = []
@@ -337,6 +379,8 @@ class FireworksBenchmarkService:
                 request_start = time.time()
                 completion_text = ""
                 first_token_time = None
+                chunk_count = 0
+                last_metric_update = 0
 
                 async for chunk in self.benchmark.streamer.stream_completion(
                     model_key=request.model_key,
@@ -344,9 +388,62 @@ class FireworksBenchmarkService:
                     request_id=f"live_bench_{model_index}_{req_id}",
                     temperature=request.temperature,
                 ):
+                    current_time = time.time()
+
                     if first_token_time is None:
-                        first_token_time = time.time()
+                        first_token_time = current_time
+                        # Immediately send TTFT update when first token arrives
+                        ttft_ms = (first_token_time - request_start) * 1000
+                        intermediate_metrics = {
+                            "current_tps": 0,  # Will be calculated as tokens accumulate
+                            "avg_ttft": ttft_ms,  # Immediate TTFT
+                            "current_rps": (completed_requests + 0.5)
+                            / (current_time - start_time),  # Progressive RPS
+                            "is_intermediate": True,
+                            "first_token_received": True,
+                        }
+                        await progress_callback(
+                            model_index, completed_requests, intermediate_metrics
+                        )
+
                     completion_text += chunk
+                    chunk_count += 1
+
+                    # Send progressive metrics every 5 chunks or every 100ms
+                    if chunk_count % 5 == 0 or current_time - last_metric_update > 0.1:
+                        tokens_so_far = len(completion_text.split())
+                        elapsed_time = current_time - request_start
+
+                        # Calculate progressive TPS for this request
+                        current_tps = (
+                            tokens_so_far / elapsed_time if elapsed_time > 0 else 0
+                        )
+
+                        # Calculate running average with completed requests
+                        if successful_results:
+                            avg_tps = (
+                                sum(r["tps"] for r in successful_results) + current_tps
+                            ) / (len(successful_results) + 1)
+                        else:
+                            avg_tps = current_tps
+
+                        progressive_metrics = {
+                            "current_tps": avg_tps,
+                            "avg_ttft": (
+                                (first_token_time - request_start) * 1000
+                                if first_token_time
+                                else 0
+                            ),
+                            "current_rps": (completed_requests + 0.8)
+                            / (current_time - start_time),  # Progressive RPS
+                            "is_intermediate": True,
+                            "tokens_so_far": tokens_so_far,
+                        }
+
+                        await progress_callback(
+                            model_index, completed_requests, progressive_metrics
+                        )
+                        last_metric_update = current_time
 
                 request_end = time.time()
                 total_time = request_end - request_start
@@ -367,19 +464,19 @@ class FireworksBenchmarkService:
                 all_results.append(result)
                 completed_requests += 1
 
-                # Calculate current metrics
-                current_metrics = {
+                # Calculate final metrics for this completed request
+                final_metrics = {
                     "current_tps": sum(r["tps"] for r in successful_results)
                     / len(successful_results),
                     "avg_ttft": sum(r["ttft"] for r in successful_results)
-                    / len(successful_results),
+                    / len(successful_results)
+                    * 1000,  # Convert to ms
                     "current_rps": completed_requests / (time.time() - start_time),
+                    "is_intermediate": False,
                 }
 
-                # Notify progress
-                await progress_callback(
-                    model_index, completed_requests, current_metrics
-                )
+                # Notify progress with final metrics
+                await progress_callback(model_index, completed_requests, final_metrics)
 
                 return result
 
@@ -402,8 +499,10 @@ class FireworksBenchmarkService:
                     "current_tps": sum(r["tps"] for r in successful_results)
                     / max(len(successful_results), 1),
                     "avg_ttft": sum(r["ttft"] for r in successful_results)
-                    / max(len(successful_results), 1),
+                    / max(len(successful_results), 1)
+                    * 1000,  # Convert to ms
                     "current_rps": completed_requests / (time.time() - start_time),
+                    "is_intermediate": False,
                 }
                 await progress_callback(
                     model_index, completed_requests, current_metrics

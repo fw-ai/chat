@@ -7,10 +7,7 @@ import { ModelSelector } from "@/components/model-selector"
 import { MessageComponent } from "@/components/message"
 import { ChatInput } from "@/components/chat-input"
 import { Button } from "@/components/ui/button"
-import { TpsMetric } from "@/components/tps-metric"
-import { RpsMetric } from "@/components/rps-metric"
-import { TtftMetric } from "@/components/ttft-metric"
-import { CompletedRequestsMetric } from "@/components/completed-requests-metric"
+import { ConsolidatedMetrics } from "@/components/consolidated-metrics"
 import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 
@@ -145,58 +142,33 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
       {/* Speed Test Metrics */}
       {speedTestEnabled && (
         <div className="px-4 py-2 bg-muted/10 border-t">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
+            {/* Left Model Metrics */}
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">{leftModel?.name || 'Model 1'}</div>
-              <div className="grid grid-cols-4 gap-2">
-                <TpsMetric
-                  tps={comparisonChat.liveMetrics?.model1_live_tps || comparisonChat.speedTestResults?.model1_tps || 0}
-                  label="TPS"
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-                <RpsMetric
-                  rps={comparisonChat.liveMetrics?.model1_live_rps || comparisonChat.speedTestResults?.model1_rps || 0}
-                  label="RPS"
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-                <TtftMetric
-                  ttft={comparisonChat.liveMetrics?.model1_live_ttft || comparisonChat.speedTestResults?.model1_ttft || 0}
-                  label="TTFT"
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-                <CompletedRequestsMetric
-                  completedRequests={comparisonChat.liveMetrics?.model1_completed_requests || comparisonChat.speedTestResults?.model1_completed_requests || 0}
-                  totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
-                  label="REQS"
-                  isLoading={comparisonChat.leftChat.isLoading}
-                />
-              </div>
+              <ConsolidatedMetrics
+                completedRequests={comparisonChat.liveMetrics?.model1_completed_requests || comparisonChat.speedTestResults?.model1_completed_requests || 0}
+                totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
+                totalTime={comparisonChat.liveMetrics?.model1_total_time || comparisonChat.speedTestResults?.model1_total_time || 0}
+                tps={comparisonChat.liveMetrics?.model1_live_tps || comparisonChat.speedTestResults?.model1_tps || 0}
+                rps={comparisonChat.liveMetrics?.model1_live_rps || comparisonChat.speedTestResults?.model1_rps || 0}
+                ttft={comparisonChat.liveMetrics?.model1_live_ttft || comparisonChat.speedTestResults?.model1_ttft || 0}
+                isLoading={comparisonChat.leftChat.isLoading}
+              />
             </div>
+
+            {/* Right Model Metrics */}
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">{rightModel?.name || 'Model 2'}</div>
-              <div className="grid grid-cols-4 gap-2">
-                <TpsMetric
-                  tps={comparisonChat.liveMetrics?.model2_live_tps || comparisonChat.speedTestResults?.model2_tps || 0}
-                  label="TPS"
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-                <RpsMetric
-                  rps={comparisonChat.liveMetrics?.model2_live_rps || comparisonChat.speedTestResults?.model2_rps || 0}
-                  label="RPS"
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-                <TtftMetric
-                  ttft={comparisonChat.liveMetrics?.model2_live_ttft || comparisonChat.speedTestResults?.model2_ttft || 0}
-                  label="TTFT"
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-                <CompletedRequestsMetric
-                  completedRequests={comparisonChat.liveMetrics?.model2_completed_requests || comparisonChat.speedTestResults?.model2_completed_requests || 0}
-                  totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
-                  label="REQS"
-                  isLoading={comparisonChat.rightChat.isLoading}
-                />
-              </div>
+              <ConsolidatedMetrics
+                completedRequests={comparisonChat.liveMetrics?.model2_completed_requests || comparisonChat.speedTestResults?.model2_completed_requests || 0}
+                totalRequests={comparisonChat.liveMetrics?.total_requests || comparisonChat.speedTestResults?.total_requests || 0}
+                totalTime={comparisonChat.liveMetrics?.model2_total_time || comparisonChat.speedTestResults?.model2_total_time || 0}
+                tps={comparisonChat.liveMetrics?.model2_live_tps || comparisonChat.speedTestResults?.model2_tps || 0}
+                rps={comparisonChat.liveMetrics?.model2_live_rps || comparisonChat.speedTestResults?.model2_rps || 0}
+                ttft={comparisonChat.liveMetrics?.model2_live_ttft || comparisonChat.speedTestResults?.model2_ttft || 0}
+                isLoading={comparisonChat.rightChat.isLoading}
+              />
             </div>
           </div>
         </div>
@@ -241,9 +213,9 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <Info size={14} />
           <span>This app is running on our serverless platform for best performance{" "}
-            <a 
-              href="https://fireworks.ai/contact" 
-              target="_blank" 
+            <a
+              href="https://fireworks.ai/contact"
+              target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-800 underline"
             >
