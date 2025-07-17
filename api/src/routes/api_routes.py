@@ -1,26 +1,24 @@
 import asyncio
 from typing import Dict, List, Optional, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
-import os
 import uuid
 from src.modules.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.benchmark import FireworksBenchmarkService
 from src.modules.session import SessionManager
+from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging
 from src.logger import logger
 
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Fireworks Chat & Benchmark API",
     description="API for chat interactions and performance benchmarking with Fireworks models",
     version="1.0.0",
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
@@ -31,16 +29,9 @@ app.add_middleware(
 
 # Global instances
 config = FireworksConfig()
-api_key = os.getenv("FIREWORKS_API_KEY")
-if not api_key:
-    raise ValueError("FIREWORKS_API_KEY environment variable is required")
-
-streamer = FireworksStreamer(api_key)
-benchmark_service = FireworksBenchmarkService(api_key)
 session_manager = SessionManager(config.config)
 
 
-# Pydantic models
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Message role: 'user' or 'assistant'")
     content: str = Field(..., description="Message content")
@@ -113,44 +104,22 @@ def generate_session_id() -> str:
     return str(uuid.uuid4())
 
 
-async def _stream_response(
-    model_key: str,
-    messages: List[Dict[str, Any]],
-    session_id: str,
-    temperature: Optional[float],
-    error_context: str,
-):
-    """Helper to stream chat responses."""
-    try:
-        async for chunk in streamer.stream_chat_completion(
-            model_key=model_key,
-            messages=messages,
-            request_id=session_id,
-            temperature=temperature,
-        ):
-            # Format as server-sent events
-            yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
-
-        # Send completion signal
-        yield f"data: {json.dumps({'type': 'done', 'session_id': session_id})}\n\n"
-
-    except Exception as e:
-        logger.error(f"Error in {error_context}: {str(e)}")
-        yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
-
-
 async def _stream_response_with_session(
     model_key: str,
     messages: List[Dict[str, Any]],
     session_id: str,
     temperature: Optional[float],
     error_context: str,
+    client_api_key: str,
 ):
     """Helper to stream chat responses and save assistant responses to session."""
     assistant_content = ""
 
     try:
-        async for chunk in streamer.stream_chat_completion(
+        # Create a new streamer instance with the client's API key
+        client_streamer = FireworksStreamer(client_api_key)
+
+        async for chunk in client_streamer.stream_chat_completion(
             model_key=model_key,
             messages=messages,
             request_id=session_id,
@@ -231,9 +200,12 @@ async def list_sessions():
 
 
 @app.post("/chat/single")
-async def single_chat(request: SingleChatRequest):
+async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model chat with streaming response and conversation history"""
     try:
+        # Validate client API key first
+        client_api_key = await get_validated_api_key(http_request)
+
         if not validate_model_key(request.model_key):
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
@@ -241,7 +213,9 @@ async def single_chat(request: SingleChatRequest):
 
         session_id = request.conversation_id or generate_session_id()
 
-        logger.info(f"Chat request for session: {session_id}")
+        logger.info(
+            f"Chat request for session: {session_id} with API key: {get_api_key_safe_for_logging(client_api_key)}"
+        )
 
         # Get or create session
         session_manager.get_or_create_session(
@@ -264,6 +238,7 @@ async def single_chat(request: SingleChatRequest):
                 session_id=session_id,
                 temperature=request.temperature,
                 error_context="single chat",
+                client_api_key=client_api_key,
             ),
             media_type="text/event-stream",
             headers={
@@ -281,9 +256,14 @@ async def single_chat(request: SingleChatRequest):
 
 
 @app.post("/chat/compare")
-async def comparison_chat(request: ComparisonChatRequest):
+async def comparison_chat(request: ComparisonChatRequest, http_request: Request):
     """Side-by-side model comparison chat with conversation history"""
     try:
+        client_api_key = await get_validated_api_key(http_request)
+        logger.info(
+            f"Chat request for comparison with API key: {get_api_key_safe_for_logging(client_api_key)}"
+        )
+
         if len(request.model_keys) != 2:
             raise HTTPException(
                 status_code=400, detail="Exactly 2 model keys required for comparison"
@@ -314,10 +294,10 @@ async def comparison_chat(request: ComparisonChatRequest):
                 messages = messages_dict
                 assistant_contents = ["", ""]  # Track responses for both models
 
-                # Create async generators for both models with performance metrics enabled
+                client_streamer = FireworksStreamer(client_api_key)
                 generators = {}
                 for i, model_key in enumerate(request.model_keys):
-                    generators[f"model_{i}"] = streamer.stream_chat_completion(
+                    generators[f"model_{i}"] = client_streamer.stream_chat_completion(
                         model_key=model_key,
                         messages=messages,
                         request_id=f"{comparison_id}_{i}",
@@ -424,16 +404,18 @@ async def comparison_chat(request: ComparisonChatRequest):
                         metrics_queue = asyncio.Queue()
 
                         async def live_metrics_callback(metrics: Dict[str, Any]):
-                            # Stream metrics immediately without batching
                             await metrics_queue.put(metrics)
 
-                        # Start the benchmark in the background
+                        client_benchmark_service = FireworksBenchmarkService(
+                            client_api_key
+                        )
+
                         benchmark_task = asyncio.create_task(
-                            benchmark_service.run_live_comparison_benchmark(
+                            client_benchmark_service.run_live_comparison_benchmark(
                                 model_keys=request.model_keys,
                                 prompt=last_user_message,
                                 concurrency=request.concurrency,
-                                max_tokens=100,  # Shorter tokens for speed test
+                                max_tokens=100,
                                 temperature=request.temperature,
                                 live_metrics_callback=live_metrics_callback,
                             )
@@ -454,10 +436,8 @@ async def comparison_chat(request: ComparisonChatRequest):
                                 })}\n\n"""
 
                             except asyncio.TimeoutError:
-                                # No metrics available, continue checking if task is done
                                 continue
 
-                        # Stream any remaining metrics after completion
                         while not metrics_queue.empty():
                             try:
                                 metrics = metrics_queue.get_nowait()
