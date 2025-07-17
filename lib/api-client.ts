@@ -1,7 +1,7 @@
 import type { ChatModel } from "@/types/chat"
 
 // For local development, use localhost:8000, for Vercel deployment use relative paths
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'development' ? "http://localhost:8000" : "")
 
 export interface ChatMessage {
@@ -13,6 +13,7 @@ export interface ChatRequest {
   messages: ChatMessage[]
   model: string
   conversation_id?: string
+  apiKey: string
 }
 
 // Internal interface for backend API
@@ -30,6 +31,7 @@ export interface CompareRequest {
   conversation_id?: string
   speed_test?: boolean
   concurrency?: number
+  apiKey: string
 }
 
 // Internal interface for backend API
@@ -70,12 +72,26 @@ export class ApiClient {
     this.baseURL = baseURL
   }
 
-  async getModels(): Promise<ChatModel[]> {
-    const response = await fetch(`${this.baseURL}/models`)
-    
+  private getHeaders(apiKey?: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`
+    }
+
+    return headers
+  }
+
+  async getModels(apiKey?: string): Promise<ChatModel[]> {
+    const response = await fetch(`${this.baseURL}/models`, {
+      headers: this.getHeaders(apiKey),
+    })
+
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-      
+
       // Enhanced error handling based on status codes
       try {
         const errorData = await response.json()
@@ -98,12 +114,12 @@ export class ApiClient {
             errorMessage = `Failed to load models: ${response.status}`
         }
       }
-      
+
       throw new Error(errorMessage)
     }
-    
+
     const data = await response.json()
-    
+
     // Transform backend model format to frontend format
     return Object.entries(data.models).map(([key, model]: [string, any]) => ({
       id: key,
@@ -122,15 +138,13 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseURL}/chat/single`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.getHeaders(request.apiKey),
       body: JSON.stringify(backendRequest),
     })
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-      
+
       // Enhanced error handling based on status codes
       try {
         const errorData = await response.json()
@@ -156,7 +170,7 @@ export class ApiClient {
             errorMessage = `Request failed with status ${response.status}`
         }
       }
-      
+
       throw new Error(errorMessage)
     }
 
@@ -179,15 +193,13 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseURL}/chat/compare`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.getHeaders(request.apiKey),
       body: JSON.stringify(backendRequest),
     })
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-      
+
       // Enhanced error handling based on status codes
       try {
         const errorData = await response.json()
@@ -213,7 +225,7 @@ export class ApiClient {
             errorMessage = `Request failed with status ${response.status}`
         }
       }
-      
+
       throw new Error(errorMessage)
     }
 
@@ -241,10 +253,10 @@ export class ApiClient {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') return
-            
+
             try {
               const parsed = JSON.parse(data)
-              
+
               // Handle structured backend response format
               if (parsed.type === 'content' && parsed.content) {
                 yield parsed.content
@@ -281,10 +293,10 @@ export class ApiClient {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') return
-            
+
             try {
               const parsed = JSON.parse(data)
-              
+
               // Handle structured backend comparison response format
               if (parsed.type === 'content' && parsed.content) {
                 const modelIndex = parsed.model_index
