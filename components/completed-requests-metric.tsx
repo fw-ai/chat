@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle } from "lucide-react"
+import { memo } from "react"
 
 interface CompletedRequestsMetricProps {
   completedRequests: number
@@ -11,12 +12,12 @@ interface CompletedRequestsMetricProps {
   className?: string
 }
 
-export function CompletedRequestsMetric({ 
-  completedRequests, 
-  totalRequests, 
-  label, 
-  isLoading = false, 
-  className 
+export const CompletedRequestsMetric = memo(function CompletedRequestsMetric({
+  completedRequests,
+  totalRequests,
+  label,
+  isLoading = false,
+  className
 }: CompletedRequestsMetricProps) {
   const formatProgress = (completed: number, total: number) => {
     if (total === 0) return "0/0"
@@ -50,8 +51,8 @@ export function CompletedRequestsMetric({
           </div>
           {totalRequests > 0 && (
             <div className="w-full bg-gray-200 rounded-full h-1">
-              <div 
-                className="bg-[#6b2aff] h-1 rounded-full transition-all duration-300" 
+              <div
+                className="bg-[#6b2aff] h-1 rounded-full transition-all duration-300"
                 style={{ width: `${calculatePercentage(completedRequests, totalRequests)}%` }}
               />
             </div>
@@ -60,4 +61,4 @@ export function CompletedRequestsMetric({
       </CardContent>
     </Card>
   )
-}
+})

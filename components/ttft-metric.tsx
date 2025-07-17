@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock } from "lucide-react"
+import { memo } from "react"
 
 interface TtftMetricProps {
   ttft: number
@@ -10,7 +11,7 @@ interface TtftMetricProps {
   className?: string
 }
 
-export function TtftMetric({ ttft, label, isLoading = false, className }: TtftMetricProps) {
+export const TtftMetric = memo(function TtftMetric({ ttft, label, isLoading = false, className }: TtftMetricProps) {
   const formatTtft = (value: number) => {
     if (value === 0) return "0"
     return value.toFixed(0) + "ms"
@@ -40,4 +41,4 @@ export function TtftMetric({ ttft, label, isLoading = false, className }: TtftMe
       </CardContent>
     </Card>
   )
-}
+})

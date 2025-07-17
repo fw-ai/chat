@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Zap } from "lucide-react"
+import { memo } from "react"
 
 interface RpsMetricProps {
   rps: number
@@ -10,7 +11,7 @@ interface RpsMetricProps {
   className?: string
 }
 
-export function RpsMetric({ rps, label, isLoading = false, className }: RpsMetricProps) {
+export const RpsMetric = memo(function RpsMetric({ rps, label, isLoading = false, className }: RpsMetricProps) {
   const formatRps = (value: number) => {
     if (value === 0) return "0"
     return value.toFixed(1)
@@ -40,4 +41,4 @@ export function RpsMetric({ rps, label, isLoading = false, className }: RpsMetri
       </CardContent>
     </Card>
   )
-}
+})

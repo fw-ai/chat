@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Gauge } from "lucide-react"
+import { memo } from "react"
 
 interface TpsMetricProps {
   tps: number
@@ -10,7 +11,7 @@ interface TpsMetricProps {
   className?: string
 }
 
-export function TpsMetric({ tps, label, isLoading = false, className }: TpsMetricProps) {
+export const TpsMetric = memo(function TpsMetric({ tps, label, isLoading = false, className }: TpsMetricProps) {
   const formatTps = (value: number) => {
     if (value === 0) return "0"
     return value.toFixed(1)
@@ -40,4 +41,4 @@ export function TpsMetric({ tps, label, isLoading = false, className }: TpsMetri
       </CardContent>
     </Card>
   )
-}
+})

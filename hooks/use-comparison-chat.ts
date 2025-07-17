@@ -183,8 +183,9 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         let speedTestResults: SpeedTestResults | undefined
         let speedTestError: string | undefined
         let liveMetrics: LiveMetrics | undefined
+        let lastMetricsUpdate = 0 // Track last metrics update time for throttling
         const startTime = Date.now()
-        
+
         for await (const data of apiClient.streamCompareResponse(stream)) {
           if (data.model1_response) {
             leftContent += data.model1_response
@@ -194,13 +195,13 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               leftChat: {
                 ...prev.leftChat,
                 messages: prev.leftChat.messages.map((msg) =>
-                  msg.id === leftAssistantMessage.id 
-                    ? { 
-                        ...msg, 
+                  msg.id === leftAssistantMessage.id
+                    ? {
+                        ...msg,
                         content: leftParsed.content,
                         thinking: leftParsed.thinking,
                         thinkingTime: leftParsed.thinkingTime,
-                      } 
+                      }
                     : msg,
                 ),
               },
@@ -214,13 +215,13 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               rightChat: {
                 ...prev.rightChat,
                 messages: prev.rightChat.messages.map((msg) =>
-                  msg.id === rightAssistantMessage.id 
-                    ? { 
-                        ...msg, 
+                  msg.id === rightAssistantMessage.id
+                    ? {
+                        ...msg,
                         content: rightParsed.content,
                         thinking: rightParsed.thinking,
                         thinkingTime: rightParsed.thinkingTime,
-                      } 
+                      }
                     : msg,
                 ),
               },
@@ -234,11 +235,14 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           }
           if (data.live_metrics) {
             liveMetrics = data.live_metrics
-            // Update state with live metrics immediately
-            setState((prev) => ({
-              ...prev,
-              liveMetrics: liveMetrics,
-            }))
+            // Throttle metrics updates to reduce re-renders (update every 100ms max)
+            if (!lastMetricsUpdate || Date.now() - lastMetricsUpdate > 100) {
+              setState((prev) => ({
+                ...prev,
+                liveMetrics: liveMetrics,
+              }))
+              lastMetricsUpdate = Date.now()
+            }
           }
         }
 
@@ -246,14 +250,14 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           ...prev,
           leftChat: {
             ...prev.leftChat,
-            messages: prev.leftChat.messages.map((msg) => 
+            messages: prev.leftChat.messages.map((msg) =>
               msg.id === leftAssistantMessage.id ? { ...msg, isStreaming: false } : msg
             ),
             isLoading: false,
           },
           rightChat: {
             ...prev.rightChat,
-            messages: prev.rightChat.messages.map((msg) => 
+            messages: prev.rightChat.messages.map((msg) =>
               msg.id === rightAssistantMessage.id ? { ...msg, isStreaming: false } : msg
             ),
             isLoading: false,
@@ -268,7 +272,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           leftChat: {
             ...prev.leftChat,
             messages: prev.leftChat.messages.map((msg) =>
-              msg.id === leftAssistantMessage.id 
+              msg.id === leftAssistantMessage.id
                 ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
                 : msg,
             ),
@@ -278,7 +282,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           rightChat: {
             ...prev.rightChat,
             messages: prev.rightChat.messages.map((msg) =>
-              msg.id === rightAssistantMessage.id 
+              msg.id === rightAssistantMessage.id
                 ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
                 : msg,
             ),
@@ -301,7 +305,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       liveMetrics: undefined,
     }))
     setConversationId(undefined)
-    
+
     // Reset session if it exists
     if (state.sessionId) {
       sessionStateManager.resetSession(state.sessionId, 'manual_clear')
