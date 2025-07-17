@@ -199,7 +199,7 @@ export function AppSidebar({
                     </p>
                   )}
                   {hasApiKey && (
-                    <p className="text-xs text-green-600">
+                    <p className="text-xs" style={{ color: '#6720ff' }}>
                       ✓ Valid API key format
                     </p>
                   )}
