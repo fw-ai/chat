@@ -35,6 +35,8 @@ export interface LiveMetrics {
   model2_live_ttft: number
   model1_live_rps: number
   model2_live_rps: number
+  model1_total_time: number
+  model2_total_time: number
 }
 
 export interface SpeedTestResults {
@@ -57,6 +59,8 @@ export interface SpeedTestResults {
   model1_completed_requests?: number
   model2_completed_requests?: number
   total_requests?: number
+  model1_total_time?: number
+  model2_total_time?: number
 }
 
 export interface ComparisonChatState {

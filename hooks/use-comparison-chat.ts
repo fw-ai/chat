@@ -235,8 +235,8 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           }
           if (data.live_metrics) {
             liveMetrics = data.live_metrics
-            // Throttle metrics updates to reduce re-renders (update every 100ms max)
-            if (!lastMetricsUpdate || Date.now() - lastMetricsUpdate > 100) {
+            // Throttle metrics updates to reduce re-renders (update every 50ms max for responsiveness)
+            if (!lastMetricsUpdate || Date.now() - lastMetricsUpdate > 50) {
               setState((prev) => ({
                 ...prev,
                 liveMetrics: liveMetrics,
