@@ -501,6 +501,10 @@ async def comparison_chat(request: ComparisonChatRequest):
                                 "model1_completed_requests": model1_result.successful_requests,
                                 "model2_completed_requests": model2_result.successful_requests,
                                 "total_requests": model1_result.total_requests,
+                                "model1_total_time": model1_result.total_time
+                                * 1000,  # Convert to ms
+                                "model2_total_time": model2_result.total_time
+                                * 1000,  # Convert to ms
                             }
 
                             # Stream final speed test results
