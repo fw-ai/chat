@@ -5,6 +5,7 @@ import type { Message, ChatModel, ComparisonChatState, SpeedTestResults, LiveMet
 import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
+import { chatPersistenceManager } from "@/lib/chat-persistence"
 
 export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string) {
   const [state, setState] = useState<ComparisonChatState>({
@@ -35,6 +36,10 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     // Create new session if none exists
     if (!state.sessionId) {
       const session = sessionStateManager.createComparisonSession(leftModel, rightModel, conversationId)
+
+      // Load persisted messages for this model combination
+      const persistedChat = chatPersistenceManager.getComparisonChat(leftModel, rightModel)
+
       setState(prev => ({
         ...prev,
         sessionId: session.id,
@@ -42,6 +47,16 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         leftModel,
         rightModel,
         comparisonId: undefined, // Reset comparison ID on new session
+        leftChat: {
+          messages: persistedChat.leftMessages,
+          isLoading: false,
+          error: null
+        },
+        rightChat: {
+          messages: persistedChat.rightMessages,
+          isLoading: false,
+          error: null
+        },
       }))
       return
     }
@@ -52,11 +67,19 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       leftModel,
       rightModel,
       () => {
-        // Reset callback - clear messages and conversation
+        // Reset callback - clear when models change (don't persist across model changes)
         setState(prev => ({
           ...prev,
-          leftChat: { messages: [], isLoading: false, error: null },
-          rightChat: { messages: [], isLoading: false, error: null },
+          leftChat: {
+            messages: [], // Start fresh with new models
+            isLoading: false,
+            error: null
+          },
+          rightChat: {
+            messages: [], // Start fresh with new models
+            isLoading: false,
+            error: null
+          },
           speedTestResults: undefined,
           speedTestError: undefined,
           liveMetrics: undefined,
@@ -87,17 +110,38 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     }
   }, [leftModel, rightModel, state.sessionId, state.lastModelHash, conversationId])
 
+  // Save messages whenever they change
+  useEffect(() => {
+    if (leftModel && rightModel && (state.leftChat.messages.length > 0 || state.rightChat.messages.length > 0)) {
+      chatPersistenceManager.saveComparisonChat(
+        leftModel,
+        rightModel,
+        state.leftChat.messages,
+        state.rightChat.messages
+      )
+    }
+  }, [leftModel, rightModel, state.leftChat.messages, state.rightChat.messages])
+
   // Handle page refresh detection
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (state.sessionId) {
         sessionStateManager.resetSession(state.sessionId, 'page_refresh')
       }
+      // Save current messages before page unload
+      if (leftModel && rightModel && (state.leftChat.messages.length > 0 || state.rightChat.messages.length > 0)) {
+        chatPersistenceManager.saveComparisonChat(
+          leftModel,
+          rightModel,
+          state.leftChat.messages,
+          state.rightChat.messages
+        )
+      }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [state.sessionId])
+  }, [state.sessionId, leftModel, rightModel, state.leftChat.messages, state.rightChat.messages])
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -407,11 +451,16 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     }))
     setConversationId(undefined)
 
+    // Clear persisted messages for this model combination
+    if (leftModel && rightModel) {
+      chatPersistenceManager.clearComparisonChat(leftModel, rightModel)
+    }
+
     // Reset session if it exists
     if (state.sessionId) {
       sessionStateManager.resetSession(state.sessionId, 'manual_clear')
     }
-  }, [state.sessionId])
+  }, [state.sessionId, leftModel, rightModel])
 
   return {
     ...state,
