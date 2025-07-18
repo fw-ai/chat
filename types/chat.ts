@@ -73,4 +73,5 @@ export interface ComparisonChatState {
   liveMetrics?: LiveMetrics
   sessionId?: string
   lastModelHash?: string
+  comparisonId?: string  // NEW: For the new comparison architecture
 }

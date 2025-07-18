@@ -5,6 +5,7 @@ import type { Message, ChatModel, ChatState } from "@/types/chat"
 import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
+import { chatPersistenceManager } from "@/lib/chat-persistence"
 
 export function useChat(model?: ChatModel, apiKey?: string) {
   const [state, setState] = useState<ChatState>({
@@ -33,10 +34,15 @@ export function useChat(model?: ChatModel, apiKey?: string) {
     // Create new session if none exists
     if (!state.sessionId) {
       const session = sessionStateManager.createSingleSession(model, conversationId)
+
+      // Load persisted messages for this model
+      const persistedMessages = chatPersistenceManager.getSingleChat(model)
+
       setState(prev => ({
         ...prev,
         sessionId: session.id,
         lastModelHash: session.modelHash,
+        messages: persistedMessages, // Restore persisted messages
       }))
       return
     }
@@ -46,10 +52,10 @@ export function useChat(model?: ChatModel, apiKey?: string) {
       state.sessionId,
       model,
       () => {
-        // Reset callback - clear messages and conversation
+        // Reset callback - clear when model changes (don't persist across model changes)
         setState(prev => ({
           ...prev,
-          messages: [],
+          messages: [], // Start fresh with new model
           isLoading: false,
           error: null,
         }))
@@ -73,7 +79,14 @@ export function useChat(model?: ChatModel, apiKey?: string) {
         lastModelHash: session.modelHash,
       }))
     }
-  }, [model, state.sessionId, state.lastModelHash, conversationId])
+  }, [model, state.sessionId, state.lastModelHash, conversationId, state.messages])
+
+  // Save messages whenever they change
+  useEffect(() => {
+    if (model && state.messages.length > 0) {
+      chatPersistenceManager.saveSingleChat(model, state.messages)
+    }
+  }, [model, state.messages])
 
   // Handle page refresh detection
   useEffect(() => {
@@ -81,11 +94,15 @@ export function useChat(model?: ChatModel, apiKey?: string) {
       if (state.sessionId) {
         sessionStateManager.resetSession(state.sessionId, 'page_refresh')
       }
+      // Save current messages before page unload
+      if (model && state.messages.length > 0) {
+        chatPersistenceManager.saveSingleChat(model, state.messages)
+      }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [state.sessionId])
+  }, [state.sessionId, model, state.messages])
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -200,11 +217,16 @@ export function useChat(model?: ChatModel, apiKey?: string) {
     }))
     setConversationId(undefined)
 
+    // Clear persisted messages for this model
+    if (model) {
+      chatPersistenceManager.clearSingleChat(model)
+    }
+
     // Reset session if it exists
     if (state.sessionId) {
       sessionStateManager.resetSession(state.sessionId, 'manual_clear')
     }
-  }, [state.sessionId])
+  }, [state.sessionId, model])
 
   return {
     ...state,

@@ -21,9 +21,47 @@ interface BackendChatRequest {
   messages: ChatMessage[]
   model_key: string
   conversation_id?: string
+  comparison_id?: string  // NEW: For comparison chats
   temperature?: number
 }
 
+// NEW: Comparison initialization
+export interface ComparisonInitRequest {
+  messages: ChatMessage[]
+  model_keys: string[]
+  apiKey: string
+}
+
+interface BackendComparisonInitRequest {
+  messages: ChatMessage[]
+  model_keys: string[]
+}
+
+export interface ComparisonInitResponse {
+  comparison_id: string
+  model_keys: string[]
+  status: "initialized"
+}
+
+// NEW: Metrics request
+export interface MetricsRequest {
+  model_keys: string[]
+  comparison_id?: string
+  concurrency?: number
+  temperature?: number
+  prompt?: string
+  apiKey: string
+}
+
+interface BackendMetricsRequest {
+  model_keys: string[]
+  comparison_id?: string
+  concurrency?: number
+  temperature?: number
+  prompt?: string
+}
+
+// LEGACY: Keep for backward compatibility during transition
 export interface CompareRequest {
   messages: ChatMessage[]
   model1: string
@@ -34,7 +72,7 @@ export interface CompareRequest {
   apiKey: string
 }
 
-// Internal interface for backend API
+// Internal interface for backend API (LEGACY)
 interface BackendCompareRequest {
   messages: ChatMessage[]
   model_keys: string[]
@@ -128,12 +166,56 @@ export class ApiClient {
     }))
   }
 
-  async sendSingleChat(request: ChatRequest): Promise<ReadableStream<Uint8Array>> {
+  // NEW: Initialize comparison session
+  async initializeComparison(request: ComparisonInitRequest): Promise<ComparisonInitResponse> {
+    const backendRequest: BackendComparisonInitRequest = {
+      messages: request.messages,
+      model_keys: request.model_keys,
+    }
+
+    const response = await fetch(`${this.baseURL}/chat/compare/init`, {
+      method: "POST",
+      headers: this.getHeaders(request.apiKey),
+      body: JSON.stringify(backendRequest),
+    })
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+
+      try {
+        const errorData = await response.json()
+        if (errorData.detail) {
+          errorMessage = errorData.detail
+        }
+      } catch {
+        switch (response.status) {
+          case 400:
+            errorMessage = "Invalid request - check model keys and message format"
+            break
+          case 401:
+            errorMessage = "Authentication failed - check API key"
+            break
+          case 500:
+            errorMessage = "Server error - please try again later"
+            break
+          default:
+            errorMessage = `Request failed with status ${response.status}`
+        }
+      }
+
+      throw new Error(errorMessage)
+    }
+
+    return await response.json()
+  }
+
+  async sendSingleChat(request: ChatRequest, comparison_id?: string): Promise<ReadableStream<Uint8Array>> {
     // Transform request format for backend
     const backendRequest: BackendChatRequest = {
       messages: request.messages,
       model_key: request.model,
       conversation_id: request.conversation_id,
+      comparison_id: comparison_id, // NEW: Support comparison mode
     }
 
     const response = await fetch(`${this.baseURL}/chat/single`, {
@@ -181,6 +263,57 @@ export class ApiClient {
     return response.body
   }
 
+  // NEW: Stream live metrics
+  async streamMetrics(request: MetricsRequest): Promise<ReadableStream<Uint8Array>> {
+    const backendRequest: BackendMetricsRequest = {
+      model_keys: request.model_keys,
+      comparison_id: request.comparison_id,
+      concurrency: request.concurrency,
+      temperature: request.temperature,
+      prompt: request.prompt,
+    }
+
+    const response = await fetch(`${this.baseURL}/chat/metrics`, {
+      method: "POST",
+      headers: this.getHeaders(request.apiKey),
+      body: JSON.stringify(backendRequest),
+    })
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+
+      try {
+        const errorData = await response.json()
+        if (errorData.detail) {
+          errorMessage = errorData.detail
+        }
+      } catch {
+        switch (response.status) {
+          case 400:
+            errorMessage = "Invalid request - check model keys and parameters"
+            break
+          case 401:
+            errorMessage = "Authentication failed - check API key"
+            break
+          case 500:
+            errorMessage = "Server error - please try again later"
+            break
+          default:
+            errorMessage = `Request failed with status ${response.status}`
+        }
+      }
+
+      throw new Error(errorMessage)
+    }
+
+    if (!response.body) {
+      throw new Error("Response body is null")
+    }
+
+    return response.body
+  }
+
+  // LEGACY: Keep old compare method for backward compatibility during transition
   async sendCompareChat(request: CompareRequest): Promise<ReadableStream<Uint8Array>> {
     // Transform request format for backend
     const backendRequest: BackendCompareRequest = {
@@ -276,6 +409,47 @@ export class ApiClient {
     }
   }
 
+  // NEW: Stream metrics responses
+  async *streamMetricsResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{type: 'live_metrics' | 'speed_test_results' | 'error', metrics?: any, results?: any, error?: string}, void, unknown> {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.trim() === '') continue
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') return
+
+            try {
+              const parsed = JSON.parse(data)
+
+              if (parsed.type === 'live_metrics') {
+                yield { type: 'live_metrics', metrics: parsed.metrics }
+              } else if (parsed.type === 'speed_test_results') {
+                yield { type: 'speed_test_results', results: parsed.results }
+              } else if (parsed.type === 'error') {
+                yield { type: 'error', error: parsed.error || 'Unknown error' }
+              }
+            } catch (e) {
+              console.warn('Failed to parse metrics SSE data:', data)
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  // LEGACY: Keep for backward compatibility during transition
   async *streamCompareResponse(stream: ReadableStream<Uint8Array>): AsyncGenerator<{model1_response?: string, model2_response?: string, speed_test_results?: any, speed_test_error?: string, live_metrics?: any}, void, unknown> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()

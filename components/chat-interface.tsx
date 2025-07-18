@@ -14,9 +14,10 @@ import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ChatInterfaceProps {
   apiKey: string
+  onClearChatReady?: (clearChatFn: () => void) => void
 }
 
-export function ChatInterface({ apiKey }: ChatInterfaceProps) {
+export function ChatInterface({ apiKey, onClearChatReady }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
   const { models, isLoading: modelsLoading } = useModels(apiKey)
 
@@ -28,6 +29,13 @@ export function ChatInterface({ apiKey }: ChatInterfaceProps) {
   }, [models, modelsLoading, selectedModel, setSelectedModel])
 
   const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey)
+
+  // Expose clearChat function to parent component
+  useEffect(() => {
+    if (onClearChatReady) {
+      onClearChatReady(clearChat)
+    }
+  }, [clearChat, onClearChatReady])
 
   const handleSendMessage = (message: string) => {
     if (!apiKey.trim()) {

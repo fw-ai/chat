@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChatInterface } from "@/components/chat-interface"
 import { ComparisonInterface } from "@/components/comparison-interface"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { Trash2 } from "lucide-react"
 
 export type ViewType = "single" | "comparison"
 
@@ -13,6 +15,7 @@ export default function App() {
   const [speedTestEnabled, setSpeedTestEnabled] = useState(false)
   const [concurrency, setConcurrency] = useState(5)
   const [apiKey, setApiKey] = useState("")
+  const [clearChatFn, setClearChatFn] = useState<(() => void) | null>(null)
 
   const handleSpeedTestToggle = (enabled: boolean) => {
     setSpeedTestEnabled(enabled)
@@ -20,6 +23,16 @@ export default function App() {
       setConcurrency(5)
     }
   }
+
+  const handleClearChatReady = useCallback((clearFn: () => void) => {
+    setClearChatFn(() => clearFn)
+  }, [])
+
+  const handleClearChat = useCallback(() => {
+    if (clearChatFn) {
+      clearChatFn()
+    }
+  }, [clearChatFn])
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -36,9 +49,22 @@ export default function App() {
       <SidebarInset>
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-end w-full">
+            <div className="flex items-center justify-between w-full">
+              {/* Clear Chat Button - Left Side */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearChat}
+                disabled={!clearChatFn}
+                className="flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Clear Chat
+              </Button>
+
+              {/* Powered by - Right Side */}
               <div
-                className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border cursor-pointer hover:bg-muted/80 transition-colors ml-auto"
+                className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border cursor-pointer hover:bg-muted/80 transition-colors"
                 onClick={() => window.open('https://fireworks.ai', '_blank')}
               >
                 <span className="text-sm font-medium text-muted-foreground">Powered by</span>
