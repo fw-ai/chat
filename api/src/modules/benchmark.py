@@ -210,7 +210,6 @@ class FireworksBenchmarkService:
                     },
                 )
 
-            # Return empty result with error information
             return BenchmarkResult(
                 model_name=model_config["name"],
                 model_id=model_config["id"],
@@ -481,7 +480,7 @@ class FireworksBenchmarkService:
                 return result
 
             except Exception as e:
-                logger.error(f"Request {req_id} failed: {str(e)}")
+                logger.warning(f"Request {req_id} failed: {str(e)}")
                 error_result = {
                     "request_id": req_id,
                     "total_time": 0,
@@ -494,7 +493,7 @@ class FireworksBenchmarkService:
                 all_results.append(error_result)
                 completed_requests += 1
 
-                # Update progress even for errors
+                # Report as completion to frontend (hide failure details)
                 current_metrics = {
                     "current_tps": sum(r["tps"] for r in successful_results)
                     / max(len(successful_results), 1),
@@ -510,9 +509,27 @@ class FireworksBenchmarkService:
 
                 return error_result
 
-        # Run concurrent requests
+        # Run concurrent requests with proper completion tracking
         tasks = [single_request(i) for i in range(request.concurrency)]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results_from_gather = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Handle any silent failures from asyncio.gather
+        for i, result in enumerate(results_from_gather):
+            if isinstance(result, Exception):
+                logger.warning(f"Request {i} failed silently: {str(result)}")
+                # Check if this request wasn't already counted in our trackers
+                if len(all_results) < completed_requests + 1:
+                    error_result = {
+                        "request_id": i,
+                        "total_time": 0,
+                        "tokens": 0,
+                        "ttft": 0,
+                        "tps": 0,
+                        "error": str(result),
+                        "completion_text": "",
+                    }
+                    all_results.append(error_result)
+                    completed_requests += 1
 
         total_time = time.time() - start_time
 
@@ -588,84 +605,6 @@ class FireworksBenchmarkService:
                 "model_config": model_config,
             },
         )
-
-    async def run_comparison_benchmark(
-        self,
-        model_keys: List[str],
-        prompt: str,
-        concurrency: int = 10,
-        max_tokens: int = 256,
-        temperature: float = 0.7,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
-    ) -> Dict[str, BenchmarkResult]:
-        """
-        Run benchmark comparison across multiple models
-
-        Args:
-            model_keys: List of model keys to compare
-            prompt: Test prompt
-            concurrency: Number of concurrent requests per model
-            temperature: Sampling temperature
-            progress_callback: Optional callback for progress updates
-
-        Returns:
-            Dictionary mapping model keys to their benchmark results
-        """
-        results = {}
-
-        if progress_callback:
-            progress_callback(
-                "starting_comparison",
-                {
-                    "models": [
-                        self.config.get_model(key)["name"] for key in model_keys
-                    ],
-                    "status": "Starting comparison benchmark...",
-                },
-            )
-
-        # Run benchmarks for each model
-        for i, model_key in enumerate(model_keys):
-            if progress_callback:
-                progress_callback(
-                    "model_progress",
-                    {
-                        "current_model": self.config.get_model(model_key)["name"],
-                        "progress": i / len(model_keys),
-                        "status": f"Testing model {i + 1} of {len(model_keys)}",
-                    },
-                )
-
-            request = BenchmarkRequest(
-                model_key=model_key,
-                prompt=prompt,
-                concurrency=concurrency,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-
-            results[model_key] = await self.run_single_benchmark(
-                request, progress_callback
-            )
-
-        if progress_callback:
-            progress_callback(
-                "comparison_completed",
-                {
-                    "results": {k: v.to_dict() for k, v in results.items()},
-                    "status": "Comparison benchmark completed",
-                },
-            )
-
-        return results
-
-    def get_available_models(self) -> Dict[str, Dict[str, Any]]:
-        """Get all available models with their configurations"""
-        return self.config.get_all_models()
-
-    def get_model_info(self, model_key: str) -> Dict[str, Any]:
-        """Get detailed information about a specific model"""
-        return self.config.get_model(model_key)
 
 
 class BenchmarkReporter:

@@ -3,19 +3,16 @@ models:
     id: "accounts/fireworks/models/kimi-k2-instruct"
     name: "Kimi K2"
     display_name: "Kimi K2"
-    deployment_type: "serverless"
 
   deepseek_v3:
     id: "accounts/fireworks/models/deepseek-v3"
     name: "DeepSeek V3"
     display_name: "DeepSeek V3"
-    deployment_type: "serverless"
 
   deepseek_r1:
     id: "accounts/fireworks/models/deepseek-r1"
     name: "DeepSeek R1"
     display_name: "DeepSeek R1"
-    deployment_type: "serverless"
 
   deepseek_r1_05_28:
     id: "accounts/fireworks/models/deepseek-r1-0528"
@@ -26,31 +23,31 @@ models:
     id: "accounts/fireworks/models/qwen3-235b-a22b"
     name: "Qwen3 235B"
     display_name: "Qwen3 235B"
-    deployment_type: "serverless"
 
   qwen_3_30b:
     id: "accounts/fireworks/models/qwen3-30b-a3b"
     name: "Qwen 3 30B"
     display_name: "Qwen 3 30B"
-    deployment_type: "serverless"
-
-  llama_70b:
-    id: "accounts/fireworks/models/llama-v3p3-70b-instruct"
-    name: "Llama 70B"
-    display_name: "Llama 70B"
-    deployment_type: "serverless"
 
   llama_scout:
     id: "accounts/fireworks/models/llama4-scout-instruct-basic"
     name: "Llama Scout"
     display_name: "Llama 4 Scout"
-    deployment_type: "serverless"
 
   llama_maverick:
     id: "accounts/fireworks/models/llama4-maverick-instruct-basic"
     name: "Llama Maverick"
     display_name: "Llama 4 Maverick"
-    deployment_type: "serverless"
+
+  llama_70b:
+    id: "accounts/fireworks/models/llama-v3p3-70b-instruct"
+    name: "Llama 3.3 70B"
+    display_name: "Llama 3.3 70B"
+
+  llama_8b:
+    id: "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    name: "Llama 3.1 8B"
+    display_name: "Llama 3.1 8B"
 
 defaults:
   temperature: 0.2
@@ -58,4 +55,3 @@ defaults:
   timeout: 30
 
 base_url: https://api.fireworks.ai/inference/v1
-
