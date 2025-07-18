@@ -14,6 +14,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     rightModel: rightModel || { id: "", name: "", provider: "" },
     sessionId: undefined,
     lastModelHash: undefined,
+    comparisonId: undefined,  // NEW: Track comparison ID
   })
   const [conversationId, setConversationId] = useState<string | undefined>()
 
@@ -40,6 +41,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         lastModelHash: session.modelHash,
         leftModel,
         rightModel,
+        comparisonId: undefined, // Reset comparison ID on new session
       }))
       return
     }
@@ -58,6 +60,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           speedTestResults: undefined,
           speedTestError: undefined,
           liveMetrics: undefined,
+          comparisonId: undefined, // Reset comparison ID on model change
         }))
         setConversationId(undefined)
       }
@@ -68,6 +71,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       setState(prev => ({
         ...prev,
         sessionId: result.sessionId,
+        comparisonId: undefined, // Reset comparison ID on session change
       }))
     }
 
@@ -157,109 +161,210 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       }))
 
       try {
-        // Send only the new user message - backend will manage conversation history
+        // NEW ARCHITECTURE: 3-step flow
+
+        // Step 1: Initialize comparison session
         const messages = [{
           role: userMessage.role,
           content: userMessage.content
         }]
 
-        const stream = await apiClient.sendCompareChat({
+        const comparisonInit = await apiClient.initializeComparison({
           messages,
-          model1: leftModel.id,
-          model2: rightModel.id,
-          conversation_id: state.sessionId || conversationId, // Use session ID or fallback to conversation ID
-          speed_test: speedTestEnabled,
-          concurrency: speedTestEnabled ? concurrency : undefined,
-          apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
+          model_keys: [leftModel.id, rightModel.id],
+          apiKey: apiKey!,
         })
 
-        let leftContent = ""
-        let rightContent = ""
-        let speedTestResults: SpeedTestResults | undefined
-        let speedTestError: string | undefined
-        let liveMetrics: LiveMetrics | undefined
-        let lastMetricsUpdate = 0 // Track last metrics update time for throttling
-        const startTime = Date.now()
+        // Update state with comparison ID
+        setState(prev => ({
+          ...prev,
+          comparisonId: comparisonInit.comparison_id,
+        }))
 
-        for await (const data of apiClient.streamCompareResponse(stream)) {
-          if (data.model1_response) {
-            leftContent += data.model1_response
-            const leftParsed = parseThinkingContent(leftContent, startTime)
+        const comparisonId = comparisonInit.comparison_id
+
+        // Step 2: Start parallel model streams + optional metrics stream
+        const streamPromises: Promise<void>[] = []
+
+        // Stream for left model
+        const leftStreamPromise = (async () => {
+          try {
+            const leftStream = await apiClient.sendSingleChat({
+              messages,
+              model: leftModel.id,
+              conversation_id: state.sessionId,
+              apiKey: apiKey!,
+            }, comparisonId)
+
+            let leftContent = ""
+            const startTime = Date.now()
+
+            for await (const chunk of apiClient.streamResponse(leftStream)) {
+              leftContent += chunk
+              const leftParsed = parseThinkingContent(leftContent, startTime)
+              setState((prev) => ({
+                ...prev,
+                leftChat: {
+                  ...prev.leftChat,
+                  messages: prev.leftChat.messages.map((msg) =>
+                    msg.id === leftAssistantMessage.id
+                      ? {
+                          ...msg,
+                          content: leftParsed.content,
+                          thinking: leftParsed.thinking,
+                          thinkingTime: leftParsed.thinkingTime,
+                        }
+                      : msg,
+                  ),
+                },
+              }))
+            }
+
+            // Mark left model as done
+            setState((prev) => ({
+              ...prev,
+              leftChat: {
+                ...prev.leftChat,
+                messages: prev.leftChat.messages.map((msg) =>
+                  msg.id === leftAssistantMessage.id ? { ...msg, isStreaming: false } : msg
+                ),
+                isLoading: false,
+              },
+            }))
+          } catch (error) {
+            console.error("Left model stream error:", error)
             setState((prev) => ({
               ...prev,
               leftChat: {
                 ...prev.leftChat,
                 messages: prev.leftChat.messages.map((msg) =>
                   msg.id === leftAssistantMessage.id
-                    ? {
-                        ...msg,
-                        content: leftParsed.content,
-                        thinking: leftParsed.thinking,
-                        thinkingTime: leftParsed.thinkingTime,
-                      }
+                    ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
                     : msg,
                 ),
+                isLoading: false,
+                error: "Left model failed to respond",
               },
             }))
           }
-          if (data.model2_response) {
-            rightContent += data.model2_response
-            const rightParsed = parseThinkingContent(rightContent, startTime)
+        })()
+
+        // Stream for right model
+        const rightStreamPromise = (async () => {
+          try {
+            const rightStream = await apiClient.sendSingleChat({
+              messages,
+              model: rightModel.id,
+              conversation_id: state.sessionId,
+              apiKey: apiKey!,
+            }, comparisonId)
+
+            let rightContent = ""
+            const startTime = Date.now()
+
+            for await (const chunk of apiClient.streamResponse(rightStream)) {
+              rightContent += chunk
+              const rightParsed = parseThinkingContent(rightContent, startTime)
+              setState((prev) => ({
+                ...prev,
+                rightChat: {
+                  ...prev.rightChat,
+                  messages: prev.rightChat.messages.map((msg) =>
+                    msg.id === rightAssistantMessage.id
+                      ? {
+                          ...msg,
+                          content: rightParsed.content,
+                          thinking: rightParsed.thinking,
+                          thinkingTime: rightParsed.thinkingTime,
+                        }
+                      : msg,
+                  ),
+                },
+              }))
+            }
+
+            // Mark right model as done
+            setState((prev) => ({
+              ...prev,
+              rightChat: {
+                ...prev.rightChat,
+                messages: prev.rightChat.messages.map((msg) =>
+                  msg.id === rightAssistantMessage.id ? { ...msg, isStreaming: false } : msg
+                ),
+                isLoading: false,
+              },
+            }))
+          } catch (error) {
+            console.error("Right model stream error:", error)
             setState((prev) => ({
               ...prev,
               rightChat: {
                 ...prev.rightChat,
                 messages: prev.rightChat.messages.map((msg) =>
                   msg.id === rightAssistantMessage.id
-                    ? {
-                        ...msg,
-                        content: rightParsed.content,
-                        thinking: rightParsed.thinking,
-                        thinkingTime: rightParsed.thinkingTime,
-                      }
+                    ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
                     : msg,
                 ),
+                isLoading: false,
+                error: "Right model failed to respond",
               },
             }))
           }
-          if (data.speed_test_results) {
-            speedTestResults = data.speed_test_results
-          }
-          if (data.speed_test_error) {
-            speedTestError = data.speed_test_error
-          }
-          if (data.live_metrics) {
-            liveMetrics = data.live_metrics
-            // Throttle metrics updates to reduce re-renders (update every 50ms max for responsiveness)
-            if (!lastMetricsUpdate || Date.now() - lastMetricsUpdate > 50) {
+        })()
+
+        streamPromises.push(leftStreamPromise, rightStreamPromise)
+
+        // Step 3: Optional metrics stream (if speed test enabled)
+        if (speedTestEnabled) {
+          const metricsStreamPromise = (async () => {
+            try {
+              const metricsStream = await apiClient.streamMetrics({
+                model_keys: [leftModel.id, rightModel.id],
+                comparison_id: comparisonId,
+                concurrency: speedTestEnabled ? concurrency : undefined,
+                apiKey: apiKey!,
+              })
+
+              let lastMetricsUpdate = 0 // Track last metrics update time for throttling
+
+              for await (const data of apiClient.streamMetricsResponse(metricsStream)) {
+                if (data.type === 'live_metrics' && data.metrics) {
+                  // Throttle metrics updates to reduce re-renders (update every 50ms max for responsiveness)
+                  if (!lastMetricsUpdate || Date.now() - lastMetricsUpdate > 50) {
+                    setState((prev) => ({
+                      ...prev,
+                      liveMetrics: data.metrics,
+                    }))
+                    lastMetricsUpdate = Date.now()
+                  }
+                } else if (data.type === 'speed_test_results' && data.results) {
+                  setState((prev) => ({
+                    ...prev,
+                    speedTestResults: data.results,
+                  }))
+                } else if (data.type === 'error') {
+                  console.error('Metrics stream error:', data.error)
+                  setState((prev) => ({
+                    ...prev,
+                    speedTestError: data.error,
+                  }))
+                }
+              }
+            } catch (error) {
+              console.error("Metrics stream error:", error)
               setState((prev) => ({
                 ...prev,
-                liveMetrics: liveMetrics,
+                speedTestError: "Failed to load performance metrics",
               }))
-              lastMetricsUpdate = Date.now()
             }
-          }
+          })()
+
+          streamPromises.push(metricsStreamPromise)
         }
 
-        setState((prev) => ({
-          ...prev,
-          leftChat: {
-            ...prev.leftChat,
-            messages: prev.leftChat.messages.map((msg) =>
-              msg.id === leftAssistantMessage.id ? { ...msg, isStreaming: false } : msg
-            ),
-            isLoading: false,
-          },
-          rightChat: {
-            ...prev.rightChat,
-            messages: prev.rightChat.messages.map((msg) =>
-              msg.id === rightAssistantMessage.id ? { ...msg, isStreaming: false } : msg
-            ),
-            isLoading: false,
-          },
-          speedTestResults: speedTestResults,
-          speedTestError: speedTestError,
-        }))
+        // Wait for all streams to complete
+        await Promise.allSettled(streamPromises)
+
       } catch (error) {
         console.error("Failed to send comparison message:", error)
         setState((prev) => ({
@@ -298,6 +403,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
       speedTestResults: undefined,
       speedTestError: undefined,
       liveMetrics: undefined,
+      comparisonId: undefined, // Reset comparison ID on clear
     }))
     setConversationId(undefined)
 
