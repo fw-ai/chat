@@ -68,22 +68,22 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
         </div>
 
         {message.thinking && (
-          <ThinkingDisplay 
-            thinking={message.thinking} 
-            thinkingTime={message.thinkingTime} 
+          <ThinkingDisplay
+            thinking={message.thinking}
+            thinkingTime={message.thinkingTime}
             isStreaming={message.isStreaming}
           />
         )}
 
-        <div className="max-w-none">
+        <div className="min-w-0 max-w-full" style={{ maxWidth: '100%', minWidth: '0', width: '100%' }}>
           {message.error ? (
             <div className="flex items-center gap-2 text-destructive">
               <AlertCircle size={16} />
               <span>{message.error}</span>
             </div>
           ) : (
-            <div className="relative">
-              <MarkdownRenderer content={message.content} />
+            <div className="relative min-w-0" style={{ maxWidth: '100%', minWidth: '0', width: '100%' }}>
+              <MarkdownRenderer content={message.content} className="max-w-full overflow-hidden" />
               {message.isStreaming && <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse" />}
             </div>
           )}

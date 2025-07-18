@@ -62,9 +62,9 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
     <div className="h-full flex flex-col relative">
 
       {/* Two column layout */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex" style={{ width: '100%', maxWidth: '100%' }}>
         {/* Left Column */}
-        <div className="flex-1 flex flex-col border-r">
+        <div className="w-1/2 min-w-0 flex flex-col border-r" style={{ width: '50%', maxWidth: '50%', minWidth: '0' }}>
           {/* Left model selector */}
           <div className="p-4 border-b bg-muted/30">
             <ModelSelector
@@ -77,8 +77,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
 
 
           {/* Left chat area */}
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxWidth: '100%', minWidth: '0' }}>
               {comparisonChat.leftChat.messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <div className="text-center">
@@ -103,7 +103,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
         </div>
 
         {/* Right Column */}
-        <div className="flex-1 flex flex-col">
+        <div className="w-1/2 min-w-0 flex flex-col" style={{ width: '50%', maxWidth: '50%', minWidth: '0' }}>
           {/* Right model selector */}
           <div className="p-4 border-b bg-muted/30">
             <ModelSelector
@@ -116,8 +116,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
 
 
           {/* Right chat area */}
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxWidth: '100%', minWidth: '0' }}>
               {comparisonChat.rightChat.messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <div className="text-center">
