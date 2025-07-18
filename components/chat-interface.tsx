@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useChat } from "@/hooks/use-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -10,21 +10,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
+import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ChatInterfaceProps {
   apiKey: string
 }
 
 export function ChatInterface({ apiKey }: ChatInterfaceProps) {
-  const [selectedModel, setSelectedModel] = useState<ChatModel | undefined>()
+  const { selectedModel, setSelectedModel } = useModelSelection('single')
   const { models, isLoading: modelsLoading } = useModels(apiKey)
 
-  // Auto-select first model when models load
+  // Auto-select first model when models load (only if no cached selection)
   useEffect(() => {
-    if (!selectedModel && models.length > 0 && !modelsLoading) {
+    if (!selectedModel && models.length > 0 && !modelsLoading && !hasCachedModel('single')) {
       setSelectedModel(models[0])
     }
-  }, [models, modelsLoading, selectedModel])
+  }, [models, modelsLoading, selectedModel, setSelectedModel])
 
   const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey)
 

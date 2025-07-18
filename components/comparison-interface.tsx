@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useComparisonChat } from "@/hooks/use-comparison-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ConsolidatedMetrics } from "@/components/consolidated-metrics"
 import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
+import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
@@ -18,19 +19,20 @@ interface ComparisonInterfaceProps {
 }
 
 export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, apiKey }: ComparisonInterfaceProps) {
-  const [leftModel, setLeftModel] = useState<ChatModel | undefined>()
-  const [rightModel, setRightModel] = useState<ChatModel | undefined>()
+  const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
+  const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
   const { models, isLoading: modelsLoading } = useModels(apiKey)
 
-  // Auto-select first and second models when models load
+  // Auto-select first and second models when models load (only if no cached selections)
   useEffect(() => {
-    if (!leftModel && !rightModel && models.length > 0 && !modelsLoading) {
+    if (!leftModel && !rightModel && models.length > 0 && !modelsLoading &&
+        !hasCachedModel('left') && !hasCachedModel('right')) {
       setLeftModel(models[0])
       if (models.length > 1) {
         setRightModel(models[1])
       }
     }
-  }, [models, modelsLoading, leftModel, rightModel])
+  }, [models, modelsLoading, leftModel, rightModel, setLeftModel, setRightModel])
 
   const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey)
 

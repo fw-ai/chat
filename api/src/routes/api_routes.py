@@ -30,6 +30,7 @@ app.add_middleware(
 # Global instances
 config = FireworksConfig()
 session_manager = SessionManager(config.config)
+_MODELS = config.get_all_models()
 
 
 class ChatMessage(BaseModel):
@@ -152,8 +153,7 @@ async def root():
 async def get_available_models():
     """Get all available models"""
     try:
-        models = config.get_all_models()
-        return {"models": models}
+        return {"models": _MODELS}
     except Exception as e:
         logger.error(f"Error getting models: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get available models")
