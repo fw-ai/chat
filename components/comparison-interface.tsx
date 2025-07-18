@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useComparisonChat } from "@/hooks/use-comparison-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -10,30 +10,36 @@ import { Button } from "@/components/ui/button"
 import { ConsolidatedMetrics } from "@/components/consolidated-metrics"
 import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
+import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
   concurrency?: number
+  apiKey: string
 }
 
-export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 }: ComparisonInterfaceProps) {
-  const [leftModel, setLeftModel] = useState<ChatModel | undefined>()
-  const [rightModel, setRightModel] = useState<ChatModel | undefined>()
-  const { models, isLoading: modelsLoading } = useModels()
+export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, apiKey }: ComparisonInterfaceProps) {
+  const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
+  const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
+  const { models, isLoading: modelsLoading } = useModels(apiKey)
 
-  // Auto-select first and second models when models load
+  // Auto-select first and second models when models load (only if no cached selections)
   useEffect(() => {
-    if (!leftModel && !rightModel && models.length > 0 && !modelsLoading) {
+    if (!leftModel && !rightModel && models.length > 0 && !modelsLoading &&
+        !hasCachedModel('left') && !hasCachedModel('right')) {
       setLeftModel(models[0])
       if (models.length > 1) {
         setRightModel(models[1])
       }
     }
-  }, [models, modelsLoading, leftModel, rightModel])
+  }, [models, modelsLoading, leftModel, rightModel, setLeftModel, setRightModel])
 
-  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency)
+  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey)
 
   const handleSendMessage = (message: string) => {
+    if (!apiKey.trim()) {
+      return
+    }
     comparisonChat.sendMessage(message)
   }
 
@@ -44,8 +50,17 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
   const isLoading = comparisonChat.leftChat.isLoading || comparisonChat.rightChat.isLoading
   const hasMessages = comparisonChat.leftChat.messages.length > 0 || comparisonChat.rightChat.messages.length > 0
 
+  // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
+  const isValidApiKeyFormat = (key: string): boolean => {
+    const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
+    return fireworksApiKeyRegex.test(key)
+  }
+
+  const hasApiKey = apiKey.trim().length > 0 && isValidApiKeyFormat(apiKey.trim())
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
+
       {/* Two column layout */}
       <div className="flex-1 flex">
         {/* Left Column */}
@@ -56,6 +71,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
               selectedModel={leftModel}
               onModelChange={setLeftModel}
               className="w-full"
+              disabled={!hasApiKey}
             />
           </div>
 
@@ -94,6 +110,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
               selectedModel={rightModel}
               onModelChange={setRightModel}
               className="w-full"
+              disabled={!hasApiKey}
             />
           </div>
 
@@ -179,8 +196,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
         <div className="flex gap-2 mb-3">
           <ChatInput
             onSendMessage={handleSendMessage}
-            disabled={isLoading}
-            placeholder="Send a message to compare responses from both models..."
+            disabled={isLoading || !hasApiKey}
+            placeholder={hasApiKey ? "Send a message to compare responses from both models..." : "API key required to start chatting"}
             showSendButton={false}
           />
           <Button
@@ -194,7 +211,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
                 }
               }
             }}
-            disabled={isLoading}
+            disabled={isLoading || !hasApiKey}
             className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
             style={{ backgroundColor: '#6b2aff' }}
           >
@@ -202,7 +219,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1 
           </Button>
           <Button
             onClick={handleClearChats}
-            disabled={!hasMessages}
+            disabled={!hasMessages || !hasApiKey}
             variant="outline"
             size="default"
             className="self-end bg-transparent"

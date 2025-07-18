@@ -8,9 +8,10 @@ interface ModelSelectorProps {
   selectedModel?: ChatModel
   onModelChange: (model: ChatModel) => void
   className?: string
+  disabled?: boolean
 }
 
-export function ModelSelector({ selectedModel, onModelChange, className }: ModelSelectorProps) {
+export function ModelSelector({ selectedModel, onModelChange, className, disabled = false }: ModelSelectorProps) {
   const { models, isLoading, error } = useModels()
 
   if (error) {
@@ -28,19 +29,17 @@ export function ModelSelector({ selectedModel, onModelChange, className }: Model
         const model = models.find((m) => m.id === value)
         if (model) onModelChange(model)
       }}
-      disabled={isLoading}
+      disabled={disabled || isLoading}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"}>
-          {selectedModel && (
-            <span className="font-medium">{selectedModel.name}</span>
-          )}
-        </SelectValue>
+        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"} />
       </SelectTrigger>
       <SelectContent>
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id}>
-            <span className="font-medium">{model.name}</span>
+            <div className="flex flex-col items-start">
+              <span className="font-medium">{model.name}</span>
+            </div>
           </SelectItem>
         ))}
       </SelectContent>

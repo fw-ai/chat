@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useChat } from "@/hooks/use-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -10,31 +10,50 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
+import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
-export function ChatInterface() {
-  const [selectedModel, setSelectedModel] = useState<ChatModel | undefined>()
-  const { models, isLoading: modelsLoading } = useModels()
+interface ChatInterfaceProps {
+  apiKey: string
+}
 
-  // Auto-select first model when models load
+export function ChatInterface({ apiKey }: ChatInterfaceProps) {
+  const { selectedModel, setSelectedModel } = useModelSelection('single')
+  const { models, isLoading: modelsLoading } = useModels(apiKey)
+
+  // Auto-select first model when models load (only if no cached selection)
   useEffect(() => {
-    if (!selectedModel && models.length > 0 && !modelsLoading) {
+    if (!selectedModel && models.length > 0 && !modelsLoading && !hasCachedModel('single')) {
       setSelectedModel(models[0])
     }
-  }, [models, modelsLoading, selectedModel])
-  const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel)
+  }, [models, modelsLoading, selectedModel, setSelectedModel])
+
+  const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey)
 
   const handleSendMessage = (message: string) => {
+    if (!apiKey.trim()) {
+      return
+    }
     sendMessage(message)
   }
 
+  // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
+  const isValidApiKeyFormat = (key: string): boolean => {
+    const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
+    return fireworksApiKeyRegex.test(key)
+  }
+
+  const hasApiKey = apiKey.trim().length > 0 && isValidApiKeyFormat(apiKey.trim())
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
+
       {/* Top bar with model selection only */}
       <div className="flex items-center p-4 border-b bg-background">
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           className="w-64"
+          disabled={!hasApiKey}
         />
       </div>
 
@@ -66,8 +85,8 @@ export function ChatInterface() {
             <div className="flex gap-2 mb-3">
               <ChatInput
                 onSendMessage={handleSendMessage}
-                disabled={isLoading}
-                placeholder={`Ask ${selectedModel?.name || 'the model'} anything...`}
+                disabled={isLoading || !hasApiKey}
+                placeholder={hasApiKey ? `Ask ${selectedModel?.name || 'the model'} anything...` : "API key required to start chatting"}
                 showSendButton={false}
               />
               <Button
@@ -81,7 +100,7 @@ export function ChatInterface() {
                     }
                   }
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !hasApiKey}
                 className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
                 style={{ backgroundColor: '#6b2aff' }}
               >
@@ -89,7 +108,7 @@ export function ChatInterface() {
               </Button>
               <Button
                 onClick={clearChat}
-                disabled={messages.length === 0}
+                disabled={messages.length === 0 || !hasApiKey}
                 variant="outline"
                 size="default"
                 className="self-end bg-transparent"
@@ -100,9 +119,9 @@ export function ChatInterface() {
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
               <Info size={14} />
               <span>This app is running on our serverless platform for best performance{" "}
-                <a 
-                  href="https://fireworks.ai/contact" 
-                  target="_blank" 
+                <a
+                  href="https://fireworks.ai/contact"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 underline"
                 >

@@ -6,7 +6,7 @@ import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 
-export function useChat(model?: ChatModel) {
+export function useChat(model?: ChatModel, apiKey?: string) {
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -89,7 +89,15 @@ export function useChat(model?: ChatModel) {
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || !model || !state.sessionId) return
+      // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
+      const isValidApiKeyFormat = (key: string): boolean => {
+        const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
+        return fireworksApiKeyRegex.test(key)
+      }
+
+      const hasValidApiKey = apiKey?.trim() && isValidApiKeyFormat(apiKey.trim())
+
+      if (!content.trim() || !model || !state.sessionId || !hasValidApiKey) return
 
       // Update session activity
       sessionStateManager.updateSessionActivity(state.sessionId)
@@ -135,6 +143,7 @@ export function useChat(model?: ChatModel) {
           messages,
           model: model.id,
           conversation_id: state.sessionId, // Use session ID for conversation continuity
+          apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
         })
 
         let fullContent = ""
@@ -142,17 +151,17 @@ export function useChat(model?: ChatModel) {
         for await (const chunk of apiClient.streamResponse(stream)) {
           fullContent += chunk
           const parsed = parseThinkingContent(fullContent, startTime)
-          
+
           setState((prev) => ({
             ...prev,
             messages: prev.messages.map((msg) =>
-              msg.id === assistantMessage.id 
-                ? { 
-                    ...msg, 
+              msg.id === assistantMessage.id
+                ? {
+                    ...msg,
                     content: parsed.content,
                     thinking: parsed.thinking,
                     thinkingTime: parsed.thinkingTime,
-                  } 
+                  }
                 : msg,
             ),
           }))
@@ -160,7 +169,7 @@ export function useChat(model?: ChatModel) {
 
         setState((prev) => ({
           ...prev,
-          messages: prev.messages.map((msg) => 
+          messages: prev.messages.map((msg) =>
             msg.id === assistantMessage.id ? { ...msg, isStreaming: false } : msg
           ),
           isLoading: false,
@@ -170,8 +179,8 @@ export function useChat(model?: ChatModel) {
         setState((prev) => ({
           ...prev,
           messages: prev.messages.map((msg) =>
-            msg.id === assistantMessage.id 
-              ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" } 
+            msg.id === assistantMessage.id
+              ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
               : msg,
           ),
           isLoading: false,
@@ -179,7 +188,7 @@ export function useChat(model?: ChatModel) {
         }))
       }
     },
-    [model, conversationId, state.sessionId],
+    [model, conversationId, state.sessionId, apiKey],
   )
 
   const clearChat = useCallback(() => {
@@ -190,7 +199,7 @@ export function useChat(model?: ChatModel) {
       error: null,
     }))
     setConversationId(undefined)
-    
+
     // Reset session if it exists
     if (state.sessionId) {
       sessionStateManager.resetSession(state.sessionId, 'manual_clear')

@@ -6,7 +6,7 @@ import { apiClient } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 
-export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1) {
+export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string) {
   const [state, setState] = useState<ComparisonChatState>({
     leftChat: { messages: [], isLoading: false, error: null },
     rightChat: { messages: [], isLoading: false, error: null },
@@ -97,7 +97,15 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || !leftModel || !rightModel || !state.sessionId) return
+      // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
+      const isValidApiKeyFormat = (key: string): boolean => {
+        const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
+        return fireworksApiKeyRegex.test(key)
+      }
+
+      const hasValidApiKey = apiKey?.trim() && isValidApiKeyFormat(apiKey.trim())
+
+      if (!content.trim() || !leftModel || !rightModel || !state.sessionId || !hasValidApiKey) return
 
       // Update session activity
       sessionStateManager.updateSessionActivity(state.sessionId)
@@ -110,26 +118,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         sessionId: state.sessionId,
       }
 
-      setState((prev) => ({
-        ...prev,
-        leftChat: {
-          ...prev.leftChat,
-          messages: [...prev.leftChat.messages, userMessage],
-          isLoading: true,
-          error: null,
-        },
-        rightChat: {
-          ...prev.rightChat,
-          messages: [...prev.rightChat.messages, userMessage],
-          isLoading: true,
-          error: null,
-        },
-        // Reset speed test metrics for the new conversation turn
-        speedTestResults: undefined,
-        speedTestError: undefined,
-        liveMetrics: undefined,
-      }))
-
+      // Create assistant messages for both models
       const leftAssistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -154,12 +143,17 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         ...prev,
         leftChat: {
           ...prev.leftChat,
-          messages: [...prev.leftChat.messages, leftAssistantMessage],
+          messages: [...prev.leftChat.messages, userMessage, leftAssistantMessage],
+          isLoading: true,
+          error: null,
         },
         rightChat: {
           ...prev.rightChat,
-          messages: [...prev.rightChat.messages, rightAssistantMessage],
+          messages: [...prev.rightChat.messages, userMessage, rightAssistantMessage],
+          isLoading: true,
+          error: null,
         },
+        speedTestError: undefined,
       }))
 
       try {
@@ -176,6 +170,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           conversation_id: state.sessionId || conversationId, // Use session ID or fallback to conversation ID
           speed_test: speedTestEnabled,
           concurrency: speedTestEnabled ? concurrency : undefined,
+          apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
         })
 
         let leftContent = ""
@@ -292,7 +287,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         }))
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey],
   )
 
   const clearChat = useCallback(() => {

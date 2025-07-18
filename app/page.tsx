@@ -12,7 +12,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>("single")
   const [speedTestEnabled, setSpeedTestEnabled] = useState(false)
   const [concurrency, setConcurrency] = useState(5)
-  
+  const [apiKey, setApiKey] = useState("")
+
   const handleSpeedTestToggle = (enabled: boolean) => {
     setSpeedTestEnabled(enabled)
     if (enabled && concurrency === 1) {
@@ -22,19 +23,21 @@ export default function App() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <AppSidebar 
-        currentView={currentView} 
+      <AppSidebar
+        currentView={currentView}
         onViewChange={setCurrentView}
         speedTestEnabled={speedTestEnabled}
         onSpeedTestToggle={handleSpeedTestToggle}
         concurrency={concurrency}
         onConcurrencyChange={setConcurrency}
+        apiKey={apiKey}
+        onApiKeyChange={setApiKey}
       />
       <SidebarInset>
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-end w-full">
-              <div 
+              <div
                 className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border cursor-pointer hover:bg-muted/80 transition-colors ml-auto"
                 onClick={() => window.open('https://fireworks.ai', '_blank')}
               >
@@ -47,11 +50,12 @@ export default function App() {
 
         <main className="flex-1 p-6">
           {currentView === "single" ? (
-            <ChatInterface />
+            <ChatInterface apiKey={apiKey} />
           ) : (
-            <ComparisonInterface 
+            <ComparisonInterface
               speedTestEnabled={speedTestEnabled}
               concurrency={concurrency}
+              apiKey={apiKey}
             />
           )}
         </main>
