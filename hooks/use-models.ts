@@ -11,47 +11,70 @@ interface UseModelsState {
 }
 
 // Module-level cache to persist models across component unmounts/remounts
-let modelsCache: ChatModel[] | null = null
-let cacheError: string | null = null
-let isLoadingModels = false
-let loadingPromise: Promise<void> | null = null
-let cachedFunctionCallingState: boolean | undefined = undefined
+// Separate caches for different function calling states
+let modelsCacheAll: ChatModel[] | null = null
+let modelsCacheFunctionCalling: ChatModel[] | null = null
+let cacheErrorAll: string | null = null
+let cacheErrorFunctionCalling: string | null = null
+let isLoadingAll = false
+let isLoadingFunctionCalling = false
+let loadingPromiseAll: Promise<void> | null = null
+let loadingPromiseFunctionCalling: Promise<void> | null = null
 
 export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
+  // Get the appropriate cache based on function calling state
+  const getCache = () => {
+    if (functionCallingEnabled === true) {
+      return {
+        cache: modelsCacheFunctionCalling,
+        error: cacheErrorFunctionCalling,
+        isLoading: isLoadingFunctionCalling,
+        promise: loadingPromiseFunctionCalling
+      }
+    } else {
+      return {
+        cache: modelsCacheAll,
+        error: cacheErrorAll,
+        isLoading: isLoadingAll,
+        promise: loadingPromiseAll
+      }
+    }
+  }
+
+  const { cache, error } = getCache()
+
   const [state, setState] = useState<UseModelsState>({
-    models: modelsCache || [],
-    isLoading: modelsCache === null,
-    error: cacheError,
+    models: cache || [],
+    isLoading: cache === null,
+    error: error,
   })
 
   useEffect(() => {
     let isMounted = true
 
     const loadModels = async () => {
-      // Check if cache is valid for the current function calling filter
-      const cacheIsValid = modelsCache && !cacheError &&
-        cachedFunctionCallingState === functionCallingEnabled
+      const { cache, error, isLoading, promise } = getCache()
 
-      // If models are already cached and cache is valid for current filter, use them
-      if (cacheIsValid) {
+      // If models are already cached and no error, use them
+      if (cache && !error) {
         setState({
-          models: modelsCache!,
+          models: cache,
           isLoading: false,
           error: null,
         })
         return
       }
 
-      // If already loading with the same filter, wait for the existing promise
-      if (isLoadingModels && loadingPromise &&
-          cachedFunctionCallingState === functionCallingEnabled) {
+      // If already loading, wait for the existing promise
+      if (isLoading && promise) {
         try {
-          await loadingPromise
+          await promise
           if (isMounted) {
+            const { cache: updatedCache, error: updatedError } = getCache()
             setState({
-              models: modelsCache || [],
+              models: updatedCache || [],
               isLoading: false,
-              error: cacheError,
+              error: updatedError,
             })
           }
         } catch (error) {
@@ -61,17 +84,26 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
       }
 
       // Start loading
-      isLoadingModels = true
-      cachedFunctionCallingState = functionCallingEnabled
-      loadingPromise = (async () => {
+      if (functionCallingEnabled === true) {
+        isLoadingFunctionCalling = true
+      } else {
+        isLoadingAll = true
+      }
+
+      const currentPromise = (async () => {
         try {
           setState(prev => ({ ...prev, isLoading: true, error: null }))
           // Pass function calling filter to the API
           const models = await apiClient.getModels(apiKey, functionCallingEnabled)
 
-          // Cache the results with the current filter state
-          modelsCache = models
-          cacheError = null
+          // Cache the results in the appropriate cache
+          if (functionCallingEnabled === true) {
+            modelsCacheFunctionCalling = models
+            cacheErrorFunctionCalling = null
+          } else {
+            modelsCacheAll = models
+            cacheErrorAll = null
+          }
 
           if (isMounted) {
             setState({
@@ -84,9 +116,14 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
           console.error("Failed to load models:", error)
           const errorMessage = "Failed to load models"
 
-          // Cache the error
-          cacheError = errorMessage
-          modelsCache = []
+          // Cache the error in the appropriate cache
+          if (functionCallingEnabled === true) {
+            cacheErrorFunctionCalling = errorMessage
+            modelsCacheFunctionCalling = []
+          } else {
+            cacheErrorAll = errorMessage
+            modelsCacheAll = []
+          }
 
           if (isMounted) {
             setState({
@@ -96,12 +133,24 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
             })
           }
         } finally {
-          isLoadingModels = false
-          loadingPromise = null
+          if (functionCallingEnabled === true) {
+            isLoadingFunctionCalling = false
+            loadingPromiseFunctionCalling = null
+          } else {
+            isLoadingAll = false
+            loadingPromiseAll = null
+          }
         }
       })()
 
-      await loadingPromise
+      // Store the promise in the appropriate variable
+      if (functionCallingEnabled === true) {
+        loadingPromiseFunctionCalling = currentPromise
+      } else {
+        loadingPromiseAll = currentPromise
+      }
+
+      await currentPromise
     }
 
     loadModels()
