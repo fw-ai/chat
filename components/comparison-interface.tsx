@@ -15,11 +15,12 @@ import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
   concurrency?: number
+  functionCallingEnabled?: boolean
   apiKey: string
   onClearChatReady?: (clearChatFn: () => void) => void
 }
 
-export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
+export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
   const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
   const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
   const { models, isLoading: modelsLoading } = useModels(apiKey)

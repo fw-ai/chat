@@ -14,10 +14,11 @@ import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ChatInterfaceProps {
   apiKey: string
+  functionCallingEnabled?: boolean
   onClearChatReady?: (clearChatFn: () => void) => void
 }
 
-export function ChatInterface({ apiKey, onClearChatReady }: ChatInterfaceProps) {
+export function ChatInterface({ apiKey, functionCallingEnabled = false, onClearChatReady }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
   const { models, isLoading: modelsLoading } = useModels(apiKey)
 

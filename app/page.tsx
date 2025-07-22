@@ -7,6 +7,7 @@ import { ComparisonInterface } from "@/components/comparison-interface"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
+import type { FunctionDefinition } from "@/types/chat"
 
 export type ViewType = "single" | "comparison"
 
@@ -14,6 +15,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>("single")
   const [speedTestEnabled, setSpeedTestEnabled] = useState(false)
   const [concurrency, setConcurrency] = useState(5)
+  const [functionCallingEnabled, setFunctionCallingEnabled] = useState(false)
+  const [functionDefinitions, setFunctionDefinitions] = useState<FunctionDefinition[]>([])
   const [apiKey, setApiKey] = useState("")
   const [clearChatFn, setClearChatFn] = useState<(() => void) | null>(null)
 
@@ -43,6 +46,9 @@ export default function App() {
         onSpeedTestToggle={handleSpeedTestToggle}
         concurrency={concurrency}
         onConcurrencyChange={setConcurrency}
+        functionCallingEnabled={functionCallingEnabled}
+        onFunctionCallingToggle={setFunctionCallingEnabled}
+        onFunctionDefinitionsChange={setFunctionDefinitions}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
       />
@@ -76,11 +82,15 @@ export default function App() {
 
         <main className="flex-1 p-6">
           {currentView === "single" ? (
-            <ChatInterface apiKey={apiKey} />
+            <ChatInterface
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
+            />
           ) : (
             <ComparisonInterface
               speedTestEnabled={speedTestEnabled}
               concurrency={concurrency}
+              functionCallingEnabled={functionCallingEnabled}
               apiKey={apiKey}
             />
           )}
