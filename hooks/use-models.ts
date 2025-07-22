@@ -15,8 +15,9 @@ let modelsCache: ChatModel[] | null = null
 let cacheError: string | null = null
 let isLoadingModels = false
 let loadingPromise: Promise<void> | null = null
+let cachedFunctionCallingState: boolean | undefined = undefined
 
-export function useModels(apiKey?: string) {
+export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
   const [state, setState] = useState<UseModelsState>({
     models: modelsCache || [],
     isLoading: modelsCache === null,
@@ -27,18 +28,23 @@ export function useModels(apiKey?: string) {
     let isMounted = true
 
     const loadModels = async () => {
-      // If models are already cached and no error, use them
-      if (modelsCache && !cacheError) {
+      // Check if cache is valid for the current function calling filter
+      const cacheIsValid = modelsCache && !cacheError &&
+        cachedFunctionCallingState === functionCallingEnabled
+
+      // If models are already cached and cache is valid for current filter, use them
+      if (cacheIsValid) {
         setState({
-          models: modelsCache,
+          models: modelsCache!,
           isLoading: false,
           error: null,
         })
         return
       }
 
-      // If already loading, wait for the existing promise
-      if (isLoadingModels && loadingPromise) {
+      // If already loading with the same filter, wait for the existing promise
+      if (isLoadingModels && loadingPromise &&
+          cachedFunctionCallingState === functionCallingEnabled) {
         try {
           await loadingPromise
           if (isMounted) {
@@ -56,13 +62,14 @@ export function useModels(apiKey?: string) {
 
       // Start loading
       isLoadingModels = true
+      cachedFunctionCallingState = functionCallingEnabled
       loadingPromise = (async () => {
         try {
           setState(prev => ({ ...prev, isLoading: true, error: null }))
-          // Note: /models endpoint doesn't require authentication, it just returns available models from config
-          const models = await apiClient.getModels()
+          // Pass function calling filter to the API
+          const models = await apiClient.getModels(apiKey, functionCallingEnabled)
 
-          // Cache the results
+          // Cache the results with the current filter state
           modelsCache = models
           cacheError = null
 
@@ -102,7 +109,7 @@ export function useModels(apiKey?: string) {
     return () => {
       isMounted = false
     }
-  }, []) // Removed apiKey dependency since models endpoint doesn't need it
+  }, [functionCallingEnabled]) // Add functionCallingEnabled as dependency
 
   return state
 }

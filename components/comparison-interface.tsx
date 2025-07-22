@@ -23,7 +23,7 @@ interface ComparisonInterfaceProps {
 export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
   const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
   const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
-  const { models, isLoading: modelsLoading } = useModels(apiKey)
+  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
 
   // Auto-select first and second models when models load (only if no cached selections)
   useEffect(() => {
@@ -81,6 +81,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               onModelChange={setLeftModel}
               className="w-full"
               disabled={!hasApiKey}
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
             />
           </div>
 
@@ -120,6 +122,8 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               onModelChange={setRightModel}
               className="w-full"
               disabled={!hasApiKey}
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
             />
           </div>
 

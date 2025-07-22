@@ -1,4 +1,4 @@
-import type { ChatModel } from "@/types/chat"
+import type { ChatModel, FunctionDefinition } from "@/types/chat"
 
 // For local development, use localhost:8000, for Vercel deployment use relative paths
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
@@ -13,6 +13,8 @@ export interface ChatRequest {
   messages: ChatMessage[]
   model: string
   conversation_id?: string
+  tools?: FunctionDefinition[]
+  tool_choice?: string
   apiKey: string
 }
 
@@ -23,18 +25,24 @@ interface BackendChatRequest {
   conversation_id?: string
   comparison_id?: string  // NEW: For comparison chats
   temperature?: number
+  tools?: any[]  // Function definitions
+  tool_choice?: string
 }
 
 // NEW: Comparison initialization
 export interface ComparisonInitRequest {
   messages: ChatMessage[]
   model_keys: string[]
+  tools?: FunctionDefinition[]
+  tool_choice?: string
   apiKey: string
 }
 
 interface BackendComparisonInitRequest {
   messages: ChatMessage[]
   model_keys: string[]
+  tools?: any[]
+  tool_choice?: string
 }
 
 export interface ComparisonInitResponse {
@@ -122,8 +130,17 @@ export class ApiClient {
     return headers
   }
 
-  async getModels(apiKey?: string): Promise<ChatModel[]> {
-    const response = await fetch(`${this.baseURL}/models`, {
+  async getModels(apiKey?: string, functionCallingEnabled?: boolean): Promise<ChatModel[]> {
+    // Build query parameters
+    const queryParams = new URLSearchParams()
+    if (functionCallingEnabled !== undefined) {
+      queryParams.append('function_calling', functionCallingEnabled.toString())
+    }
+
+    const queryString = queryParams.toString()
+    const url = `${this.baseURL}/models${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
       headers: this.getHeaders(apiKey),
     })
 
@@ -162,7 +179,8 @@ export class ApiClient {
     return Object.entries(data.models).map(([key, model]: [string, any]) => ({
       id: key,
       name: model.display_name || model.name,
-      provider: "Fireworks"
+      provider: "Fireworks",
+      function_calling: model.function_calling || false
     }))
   }
 
@@ -171,6 +189,8 @@ export class ApiClient {
     const backendRequest: BackendComparisonInitRequest = {
       messages: request.messages,
       model_keys: request.model_keys,
+      tools: request.tools,
+      tool_choice: request.tool_choice,
     }
 
     const response = await fetch(`${this.baseURL}/chat/compare/init`, {
@@ -216,6 +236,8 @@ export class ApiClient {
       model_key: request.model,
       conversation_id: request.conversation_id,
       comparison_id: comparison_id, // NEW: Support comparison mode
+      tools: request.tools,
+      tool_choice: request.tool_choice,
     }
 
     const response = await fetch(`${this.baseURL}/chat/single`, {

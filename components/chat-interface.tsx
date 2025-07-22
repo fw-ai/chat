@@ -20,7 +20,7 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ apiKey, functionCallingEnabled = false, onClearChatReady }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
-  const { models, isLoading: modelsLoading } = useModels(apiKey)
+  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
 
   // Auto-select first model when models load (only if no cached selection)
   useEffect(() => {
@@ -63,6 +63,8 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, onClearC
           onModelChange={setSelectedModel}
           className="w-64"
           disabled={!hasApiKey}
+          apiKey={apiKey}
+          functionCallingEnabled={functionCallingEnabled}
         />
       </div>
 
