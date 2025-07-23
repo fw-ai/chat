@@ -56,17 +56,8 @@ export default function App() {
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between w-full">
-              {/* Clear Chat Button - Left Side */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearChat}
-                disabled={!clearChatFn}
-                className="flex items-center gap-2"
-              >
-                <Trash2 size={16} />
-                Clear Chat
-              </Button>
+              {/* Left Side (empty, Clear Chat Button removed) */}
+              <div />
 
               {/* Powered by - Right Side */}
               <div
