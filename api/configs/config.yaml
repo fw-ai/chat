@@ -3,51 +3,67 @@ models:
     id: "accounts/fireworks/models/kimi-k2-instruct"
     name: "Kimi K2"
     display_name: "Kimi K2"
+    function_calling: true
 
-  deepseek_v3:
-    id: "accounts/fireworks/models/deepseek-v3"
-    name: "DeepSeek V3"
-    display_name: "DeepSeek V3"
-
-  deepseek_r1:
-    id: "accounts/fireworks/models/deepseek-r1"
-    name: "DeepSeek R1"
-    display_name: "DeepSeek R1"
-
-  deepseek_r1_05_28:
-    id: "accounts/fireworks/models/deepseek-r1-0528"
-    name: "DeepSeek R1"
-    display_name: "DeepSeek R1 (05/28)"
+  qwen3_235b_2507:
+    id: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
+    name: "Qwen3 235B 2507"
+    display_name: "Qwen3 235B 2507"
+    function_calling: true
 
   qwen3_235b:
     id: "accounts/fireworks/models/qwen3-235b-a22b"
     name: "Qwen3 235B"
     display_name: "Qwen3 235B"
+    function_calling: true
 
   qwen_3_30b:
     id: "accounts/fireworks/models/qwen3-30b-a3b"
     name: "Qwen 3 30B"
     display_name: "Qwen 3 30B"
+    function_calling: true
+
+  deepseek_v3:
+    id: "accounts/fireworks/models/deepseek-v3"
+    name: "DeepSeek V3"
+    display_name: "DeepSeek V3"
+    function_calling: true
+
+  deepseek_r1:
+    id: "accounts/fireworks/models/deepseek-r1"
+    name: "DeepSeek R1"
+    display_name: "DeepSeek R1"
+    function_calling: false
+
+  deepseek_r1_05_28:
+    id: "accounts/fireworks/models/deepseek-r1-0528"
+    name: "DeepSeek R1"
+    display_name: "DeepSeek R1 (05/28)"
+    function_calling: true
 
   llama_scout:
     id: "accounts/fireworks/models/llama4-scout-instruct-basic"
     name: "Llama Scout"
     display_name: "Llama 4 Scout"
+    function_calling: true
 
   llama_maverick:
     id: "accounts/fireworks/models/llama4-maverick-instruct-basic"
     name: "Llama Maverick"
     display_name: "Llama 4 Maverick"
+    function_calling: true
 
   llama_70b:
     id: "accounts/fireworks/models/llama-v3p3-70b-instruct"
     name: "Llama 3.3 70B"
     display_name: "Llama 3.3 70B"
+    function_calling: false
 
   llama_8b:
     id: "accounts/fireworks/models/llama-v3p1-8b-instruct"
     name: "Llama 3.1 8B"
     display_name: "Llama 3.1 8B"
+    function_calling: false
 
 defaults:
   temperature: 0.2
