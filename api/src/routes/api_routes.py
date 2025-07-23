@@ -5,13 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
 import uuid
+
 from src.modules.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging
-from src.modules.utils import add_function_calling_to_prompt
 from src.services.comparison_service import ComparisonService, MetricsStreamer
 from src.logger import logger
-
+from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
+from src.modules.llm_completion import DEFAULT_TEMPERATURE
 
 app = FastAPI(
     title="Fireworks Chat & Benchmark API",
@@ -49,15 +50,17 @@ class SingleChatRequest(BaseModel):
     comparison_id: Optional[str] = Field(
         None, description="Comparison ID when part of a comparison chat"
     )
-    tools: Optional[List[Dict[str, Any]]] = Field(
-        None, description="Available function definitions for function calling"
+    function_definitions: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Function definitions for prompt-based function calling"
     )
 
 
 class ChatCompletionRequest(BaseModel):
     model_key: str = Field(..., description="Model key from config")
     messages: List[ChatMessage] = Field(..., description="List of chat messages")
-    temperature: Optional[float] = Field(0.7, description="Sampling temperature")
+    temperature: Optional[float] = Field(
+        DEFAULT_TEMPERATURE, description="Sampling temperature"
+    )
     conversation_id: Optional[str] = Field(
         None, description="Conversation ID for tracking"
     )
@@ -104,8 +107,8 @@ class ComparisonInitRequest(BaseModel):
         ..., min_items=2, max_items=4, description="Models to compare"
     )
     messages: List[ChatMessage] = Field(..., description="Initial conversation context")
-    tools: Optional[List[Dict[str, Any]]] = Field(
-        None, description="Available function definitions for function calling"
+    function_definitions: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Function definitions for prompt-based function calling"
     )
 
 
@@ -116,15 +119,6 @@ def validate_model_key(model_key: str) -> bool:
     except ValueError:
         return False
     return True
-
-
-def validate_function_calling_support(model_key: str) -> bool:
-    """Check if model supports function calling"""
-    try:
-        model_config = config.get_model(model_key)
-        return model_config.get("function_calling", False)
-    except ValueError:
-        return False
 
 
 def generate_session_id() -> str:
@@ -139,22 +133,32 @@ async def _stream_response_with_session(
     temperature: Optional[float],
     error_context: str,
     client_api_key: str,
-    tools: Optional[List[Dict[str, Any]]] = None,
+    function_definitions: Optional[List[Dict[str, Any]]] = None,
 ):
     """Helper to stream chat responses and save assistant responses to session."""
     assistant_content = ""
 
     try:
-        # Create a new streamer instance with the client's API key
         client_streamer = FireworksStreamer(client_api_key)
 
-        if tools and validate_function_calling_support(model_key):
-            logger.info("Adding function calling to user request")
-            if messages and messages[-1].get("role") == "user":
-                user_request = messages[-1]["content"]
-                function_prompt = add_function_calling_to_prompt(user_request, tools)
-                messages[-1] = {"role": "user", "content": function_prompt}
+        # Get the latest user message to format with appropriate prompt
+        if messages and messages[-1].get("role") == "user":
+            user_request = messages[-1]["content"]
 
+            # Use function calling prompt if function definitions are provided, otherwise default prompt
+            if function_definitions and len(function_definitions) > 0:
+                logger.info("Using function calling prompt with function definitions")
+                formatted_prompt = add_function_calling_to_prompt(
+                    user_request, function_definitions
+                )
+            else:
+                logger.info("Using default prompt")
+                formatted_prompt = add_user_request_to_prompt(user_request)
+
+            # Replace the last message with the formatted prompt
+            messages[-1] = {"role": "user", "content": formatted_prompt}
+
+        # Stream chat completion using the formatted messages
         async for chunk in client_streamer.stream_chat_completion(
             model_key=model_key,
             messages=messages,
@@ -164,13 +168,11 @@ async def _stream_response_with_session(
             assistant_content += chunk
             yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
 
-        # Save assistant response to session
         if assistant_content:
             session_manager.add_assistant_message(
                 session_id, assistant_content, model_key
             )
 
-        # Send completion signal
         yield f"data: {json.dumps({'type': 'done', 'session_id': session_id})}\n\n"
 
     except Exception as e:
@@ -255,17 +257,9 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
         client_api_key = await get_validated_api_key(http_request)
-
         if not validate_model_key(request.model_key):
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
-            )
-        print(f"TOOLS {request.tools}")
-        if request.tools and not validate_function_calling_support(request.model_key):
-            logger.error(f"Model {request.model_key} does not support function calling")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Model {request.model_key} does not support function calling",
             )
 
         if request.comparison_id:
@@ -303,7 +297,7 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
                 temperature=request.temperature,
                 error_context=f"{session_type} chat",
                 client_api_key=client_api_key,
-                tools=request.tools,
+                function_definitions=request.function_definitions,
             ),
             media_type="text/event-stream",
             headers={
@@ -395,19 +389,6 @@ async def init_comparison(request: ComparisonInitRequest):
             if not validate_model_key(model_key):
                 raise HTTPException(
                     status_code=400, detail=f"Invalid model key: {model_key}"
-                )
-
-        # Validate function calling support if tools are provided
-        if request.tools:
-            unsupported_models = [
-                model_key
-                for model_key in request.model_keys
-                if not validate_function_calling_support(model_key)
-            ]
-            if unsupported_models:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Models do not support function calling: {', '.join(unsupported_models)}",
                 )
 
         comparison_id = str(uuid.uuid4())

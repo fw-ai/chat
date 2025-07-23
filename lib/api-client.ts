@@ -1,4 +1,4 @@
-import type { ChatModel, FunctionDefinition } from "@/types/chat"
+import type { ChatModel } from "@/types/chat"
 
 // For local development, use localhost:8000, for Vercel deployment use relative paths
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
@@ -13,8 +13,7 @@ export interface ChatRequest {
   messages: ChatMessage[]
   model: string
   conversation_id?: string
-  tools?: FunctionDefinition[]
-  tool_choice?: string
+  function_definitions?: any[]
   apiKey: string
 }
 
@@ -25,24 +24,21 @@ interface BackendChatRequest {
   conversation_id?: string
   comparison_id?: string  // NEW: For comparison chats
   temperature?: number
-  tools?: any[]  // Function definitions
-  tool_choice?: string
+  function_definitions?: any[]
 }
 
 // NEW: Comparison initialization
 export interface ComparisonInitRequest {
   messages: ChatMessage[]
   model_keys: string[]
-  tools?: FunctionDefinition[]
-  tool_choice?: string
+  function_definitions?: any[]
   apiKey: string
 }
 
 interface BackendComparisonInitRequest {
   messages: ChatMessage[]
   model_keys: string[]
-  tools?: any[]
-  tool_choice?: string
+  function_definitions?: any[]
 }
 
 export interface ComparisonInitResponse {
@@ -189,8 +185,7 @@ export class ApiClient {
     const backendRequest: BackendComparisonInitRequest = {
       messages: request.messages,
       model_keys: request.model_keys,
-      tools: request.tools,
-      tool_choice: request.tool_choice,
+      function_definitions: request.function_definitions,
     }
 
     const response = await fetch(`${this.baseURL}/chat/compare/init`, {
@@ -236,8 +231,7 @@ export class ApiClient {
       model_key: request.model,
       conversation_id: request.conversation_id,
       comparison_id: comparison_id, // NEW: Support comparison mode
-      tools: request.tools,
-      tool_choice: request.tool_choice,
+      function_definitions: request.function_definitions,
     }
 
     const response = await fetch(`${this.baseURL}/chat/single`, {

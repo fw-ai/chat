@@ -76,13 +76,17 @@ export default function App() {
             <ChatInterface
               apiKey={apiKey}
               functionCallingEnabled={functionCallingEnabled}
+              functionDefinitions={functionDefinitions}
+              onClearChatReady={handleClearChatReady}
             />
           ) : (
             <ComparisonInterface
               speedTestEnabled={speedTestEnabled}
               concurrency={concurrency}
               functionCallingEnabled={functionCallingEnabled}
+              functionDefinitions={functionDefinitions}
               apiKey={apiKey}
+              onClearChatReady={handleClearChatReady}
             />
           )}
         </main>

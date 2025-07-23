@@ -7,7 +7,7 @@ import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 
-export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string) {
+export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string, functionDefinitions?: any[]) {
   const [state, setState] = useState<ComparisonChatState>({
     leftChat: { messages: [], isLoading: false, error: null },
     rightChat: { messages: [], isLoading: false, error: null },
@@ -216,6 +216,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         const comparisonInit = await apiClient.initializeComparison({
           messages,
           model_keys: [leftModel.id, rightModel.id],
+          function_definitions: functionDefinitions,
           apiKey: apiKey!,
         })
 
@@ -237,6 +238,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               messages,
               model: leftModel.id,
               conversation_id: state.sessionId,
+              function_definitions: functionDefinitions,
               apiKey: apiKey!,
             }, comparisonId)
 
@@ -300,6 +302,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               messages,
               model: rightModel.id,
               conversation_id: state.sessionId,
+              function_definitions: functionDefinitions,
               apiKey: apiKey!,
             }, comparisonId)
 
@@ -436,7 +439,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         }))
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions],
   )
 
   const clearChat = useCallback(() => {

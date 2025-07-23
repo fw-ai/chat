@@ -16,11 +16,12 @@ interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
   concurrency?: number
   functionCallingEnabled?: boolean
+  functionDefinitions?: any[]
   apiKey: string
   onClearChatReady?: (clearChatFn: () => void) => void
 }
 
-export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
+export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, functionDefinitions, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
   const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
   const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
   const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
@@ -36,7 +37,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
     }
   }, [models, modelsLoading, leftModel, rightModel, setLeftModel, setRightModel])
 
-  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey)
+  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey, functionDefinitions)
 
   // Expose clearChat function to parent component
   useEffect(() => {

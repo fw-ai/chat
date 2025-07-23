@@ -25,13 +25,17 @@ export interface FunctionDefinition {
   description: string
   parameters: {
     type: "object"
-    properties: Record<string, {
-      type: string
-      description?: string
-      enum?: string[]
-    }>
+    properties: Record<string, JSONSchemaProperty>
     required?: string[]
   }
+}
+
+interface JSONSchemaProperty {
+  type: string
+  description?: string
+  enum?: string[]
+  properties?: Record<string, JSONSchemaProperty>  // For nested objects
+  items?: JSONSchemaProperty  // For arrays
 }
 
 export interface FunctionCall {

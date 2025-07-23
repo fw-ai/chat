@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _MAX_TOKENS_PER_REQUEST = 2048
-_DEFAULT_TEMPERATURE = .1
+DEFAULT_TEMPERATURE = APP_CONFIG["defaults"]["temperature"]
+
 
 @dataclass
 class StreamingStats:
@@ -43,14 +44,14 @@ class StreamingStats:
         if self.fireworks_metrics:
             if "server-time-to-first-token" in self.fireworks_metrics:
                 return (
-                        float(self.fireworks_metrics["server-time-to-first-token"]) / 1000.0
+                    float(self.fireworks_metrics["server-time-to-first-token"]) / 1000.0
                 )
             elif "fireworks-server-time-to-first-token" in self.fireworks_metrics:
                 return (
-                        float(
-                            self.fireworks_metrics["fireworks-server-time-to-first-token"]
-                        )
-                        / 1000.0
+                    float(
+                        self.fireworks_metrics["fireworks-server-time-to-first-token"]
+                    )
+                    / 1000.0
                 )
 
         # Fallback to manual tracking
@@ -170,9 +171,10 @@ class FireworksStreamer:
             if self.session and not self.session.closed:
                 try:
                     await self.session.close()
-                except:
+                except Exception as e:
+                    logger.error(f"Error closing session: {e}")
                     pass
-            
+
             # Create new session
             try:
                 self.session = aiohttp.ClientSession()
@@ -180,26 +182,27 @@ class FireworksStreamer:
                 if "event loop is closed" in str(e):
                     # Event loop is closed, create a new one (serverless environment)
                     import asyncio
+
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     self.session = aiohttp.ClientSession()
                 else:
                     raise
-        
+
         return self.session
 
     def _prepare_llm_request(
-            self,
-            request_id: Optional[str],
-            temperature: Optional[float],
-            request_prefix: str,
+        self,
+        request_id: Optional[str],
+        temperature: Optional[float],
+        request_prefix: str,
     ) -> Tuple[str, float, StreamingStats]:
         """Prepares parameters and stats for an LLM request."""
         if not request_id:
             request_id = f"{request_prefix}_{int(time.time() * 1000)}"
 
         defaults = self.config.get_defaults()
-        temperature = temperature or defaults.get("temperature", _DEFAULT_TEMPERATURE)
+        temperature = temperature or defaults.get("temperature", DEFAULT_TEMPERATURE)
         stats = StreamingStats(request_id=request_id, start_time=time.time())
 
         return request_id, temperature, stats
@@ -214,9 +217,7 @@ class FireworksStreamer:
 
     @staticmethod
     def _prepare_base_payload(
-            model_config: Dict[str, Any],
-            temperature: float,
-            enable_perf_metrics: bool
+        model_config: Dict[str, Any], temperature: float, enable_perf_metrics: bool
     ) -> Dict[str, Any]:
         """Prepare base payload common to both completion types"""
         payload = {
@@ -232,23 +233,23 @@ class FireworksStreamer:
         return payload
 
     async def _parse_streaming_response(
-            self, response: aiohttp.ClientResponse
+        self, response: aiohttp.ClientResponse
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Parse Server-Sent Events from streaming response"""
         buffer = ""
         async for chunk in response.content.iter_any():
-            buffer += chunk.decode('utf-8')
+            buffer += chunk.decode("utf-8")
 
-            while '\n' in buffer:
-                line, buffer = buffer.split('\n', 1)
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
                 line = line.strip()
 
                 if not line:
                     continue
 
-                if line.startswith('data: '):
+                if line.startswith("data: "):
                     data_str = line[6:]  # Remove 'data: ' prefix
-                    if data_str == '[DONE]':
+                    if data_str == "[DONE]":
                         return
 
                     try:
@@ -258,7 +259,9 @@ class FireworksStreamer:
                         logger.warning(f"Failed to parse JSON: {data_str}")
                         continue
 
-    def _extract_completion_text(self, chunk_data: Dict[str, Any], is_chat: bool = False) -> Tuple[str, Optional[str]]:
+    def _extract_completion_text(
+        self, chunk_data: Dict[str, Any], is_chat: bool = False
+    ) -> Tuple[str, Optional[str]]:
         """Extract text and finish_reason from chunk data for both completion types"""
         if "choices" not in chunk_data or len(chunk_data["choices"]) == 0:
             return "", None
@@ -276,40 +279,37 @@ class FireworksStreamer:
 
     @staticmethod
     def _process_performance_metrics(
-            chunk_data: Dict[str, Any],
-            stats: StreamingStats,
-            finish_reason: Optional[str],
-            enable_perf_metrics: bool
+        chunk_data: Dict[str, Any],
+        stats: StreamingStats,
+        finish_reason: Optional[str],
+        enable_perf_metrics: bool,
     ) -> None:
         """Process performance metrics if available and enabled"""
         if enable_perf_metrics and "perf_metrics" in chunk_data and finish_reason:
             stats.update_from_fireworks_metrics(chunk_data["perf_metrics"])
 
     async def _stream_request(
-            self,
-            endpoint: str,
-            payload: Dict[str, Any],
-            stats: StreamingStats,
-            callback: Optional[Callable[[str, StreamingStats], None]],
-            enable_perf_metrics: bool,
-            is_chat: bool = False,
+        self,
+        endpoint: str,
+        payload: Dict[str, Any],
+        stats: StreamingStats,
+        callback: Optional[Callable[[str, StreamingStats], None]],
+        enable_perf_metrics: bool,
+        is_chat: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Core streaming logic shared between completion types"""
         session = None
         try:
-            # Create a fresh session for each request in serverless environment
             try:
                 session = aiohttp.ClientSession()
             except RuntimeError as e:
                 if "event loop is closed" in str(e):
-                    # Event loop is closed, create a new one (serverless environment)
-                    import asyncio
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     session = aiohttp.ClientSession()
                 else:
                     raise
-            
+
             headers = self._prepare_headers()
             url = f"{self.base_url}/{endpoint}"
 
@@ -317,7 +317,9 @@ class FireworksStreamer:
                 response.raise_for_status()
 
                 async for chunk_data in self._parse_streaming_response(response):
-                    text, finish_reason = self._extract_completion_text(chunk_data, is_chat)
+                    text, finish_reason = self._extract_completion_text(
+                        chunk_data, is_chat
+                    )
                     self._process_performance_metrics(
                         chunk_data, stats, finish_reason, enable_perf_metrics
                     )
@@ -345,17 +347,18 @@ class FireworksStreamer:
             if session and not session.closed:
                 try:
                     await session.close()
-                except:
+                except Exception as e:
+                    logger.error(f"Error closing session: {e}")
                     pass
 
     async def stream_completion(
-            self,
-            model_key: str,
-            prompt: str,
-            request_id: str = None,
-            temperature: float = None,
-            callback: Optional[Callable[[str, StreamingStats], None]] = None,
-            enable_perf_metrics: bool = False,
+        self,
+        model_key: str,
+        prompt: str,
+        request_id: str = None,
+        temperature: float = None,
+        callback: Optional[Callable[[str, StreamingStats], None]] = None,
+        enable_perf_metrics: bool = False,
     ) -> AsyncGenerator[str, None]:
         """
         Stream completion from Fireworks model
@@ -376,29 +379,31 @@ class FireworksStreamer:
         )
 
         model_config = self.config.get_model(model_key)
-        payload = self._prepare_base_payload(model_config, temperature, enable_perf_metrics)
+        payload = self._prepare_base_payload(
+            model_config, temperature, enable_perf_metrics
+        )
         payload["prompt"] = add_user_request_to_prompt(prompt)
 
         async for chunk in self._stream_request(
-                "completions", payload, stats, callback, enable_perf_metrics, is_chat=False
+            "completions", payload, stats, callback, enable_perf_metrics, is_chat=False
         ):
             yield chunk
 
     async def stream_chat_completion(
-            self,
-            model_key: str,
-            messages: list,
-            request_id: str = None,
-            temperature: float = None,
-            callback: Optional[Callable[[str, StreamingStats], None]] = None,
-            enable_perf_metrics: bool = False,
+        self,
+        model_key: str,
+        messages: list,
+        request_id: str = None,
+        temperature: float = None,
+        callback: Optional[Callable[[str, StreamingStats], None]] = None,
+        enable_perf_metrics: bool = False,
     ) -> AsyncGenerator[str, None]:
         """
         Stream chat completion from Fireworks model
 
         Args:
             model_key: Key for model in config
-            messages: List of chat messages
+            messages: List of chat messages (with prompts already formatted)
             request_id: Unique request identifier
             temperature: Sampling temperature
             callback: Optional callback for streaming stats
@@ -412,11 +417,18 @@ class FireworksStreamer:
         )
 
         model_config = self.config.get_model(model_key)
-        payload = self._prepare_base_payload(model_config, temperature, enable_perf_metrics)
+        payload = self._prepare_base_payload(
+            model_config, temperature, enable_perf_metrics
+        )
         payload["messages"] = messages
 
         async for chunk in self._stream_request(
-                "chat/completions", payload, stats, callback, enable_perf_metrics, is_chat=True
+            "chat/completions",
+            payload,
+            stats,
+            callback,
+            enable_perf_metrics,
+            is_chat=True,
         ):
             yield chunk
 
@@ -436,32 +448,30 @@ class FireworksBenchmark:
         self.streamer = FireworksStreamer(api_key)
 
     async def _execute_single_request(
-            self,
-            req_id: int,
-            model_key: str,
-            prompt: str,
-            temperature: float
+        self, req_id: int, model_key: str, prompt: str, temperature: float
     ) -> Dict[str, Any]:
         """Execute a single benchmark request"""
         request_stats = []
 
         def stats_callback(text: str, stats: StreamingStats):
-            request_stats.append({
-                "time": stats.total_time,
-                "tokens": stats.tokens_generated,
-                "ttft": stats.time_to_first_token,
-                "tps": stats.tokens_per_second,
-            })
+            request_stats.append(
+                {
+                    "time": stats.total_time,
+                    "tokens": stats.tokens_generated,
+                    "ttft": stats.time_to_first_token,
+                    "tps": stats.tokens_per_second,
+                }
+            )
 
         try:
             async with FireworksStreamer(self.api_key) as streamer:
                 completion_text = ""
                 async for chunk in streamer.stream_completion(
-                        model_key=model_key,
-                        prompt=add_user_request_to_prompt(prompt),
-                        request_id=f"bench_{req_id}",
-                        temperature=temperature,
-                        callback=stats_callback,
+                    model_key=model_key,
+                    prompt=add_user_request_to_prompt(prompt),
+                    request_id=f"bench_{req_id}",
+                    temperature=temperature,
+                    callback=stats_callback,
                 ):
                     completion_text += chunk
 
@@ -470,10 +480,9 @@ class FireworksBenchmark:
                     if request_stats
                     else {"time": 0, "tokens": 0, "ttft": 0, "tps": 0}
                 )
-                final_stats.update({
-                    "completion_text": completion_text,
-                    "request_id": req_id
-                })
+                final_stats.update(
+                    {"completion_text": completion_text, "request_id": req_id}
+                )
                 return final_stats
 
         except Exception as e:
@@ -489,15 +498,12 @@ class FireworksBenchmark:
             }
 
     def _calculate_benchmark_metrics(
-            self,
-            results: list,
-            concurrency: int,
-            total_time: float,
-            model_key: str
+        self, results: list, concurrency: int, total_time: float, model_key: str
     ) -> Dict[str, Any]:
         """Calculate aggregated benchmark metrics"""
         successful_results = [
-            r for r in results
+            r
+            for r in results
             if not isinstance(r, Exception) and r.get("tokens", 0) > 0
         ]
 
@@ -539,11 +545,11 @@ class FireworksBenchmark:
         }
 
     async def run_concurrent_benchmark(
-            self,
-            model_key: str,
-            prompt: str,
-            concurrency: int = 10,
-            temperature: float = None,
+        self,
+        model_key: str,
+        prompt: str,
+        concurrency: int = 10,
+        temperature: float = None,
     ) -> Dict[str, Any]:
         """
         Run concurrent requests for benchmarking
@@ -559,4 +565,6 @@ class FireworksBenchmark:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         total_time = time.time() - start_time
 
-        return self._calculate_benchmark_metrics(results, concurrency, total_time, model_key)
+        return self._calculate_benchmark_metrics(
+            results, concurrency, total_time, model_key
+        )

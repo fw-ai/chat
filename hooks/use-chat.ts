@@ -7,7 +7,7 @@ import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 
-export function useChat(model?: ChatModel, apiKey?: string) {
+export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?: any[]) {
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -160,6 +160,7 @@ export function useChat(model?: ChatModel, apiKey?: string) {
           messages,
           model: model.id,
           conversation_id: state.sessionId, // Use session ID for conversation continuity
+          function_definitions: functionDefinitions,
           apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
         })
 
@@ -205,7 +206,7 @@ export function useChat(model?: ChatModel, apiKey?: string) {
         }))
       }
     },
-    [model, conversationId, state.sessionId, apiKey],
+    [model, conversationId, state.sessionId, apiKey, functionDefinitions],
   )
 
   const clearChat = useCallback(() => {
