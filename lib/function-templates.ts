@@ -8,169 +8,237 @@ export interface FunctionTemplate {
 
 export const FUNCTION_TEMPLATES: FunctionTemplate[] = [
   {
-    name: "weather_travel",
-    description: "Weather & Travel Tools",
+    name: "customer_support",
+    description: "Customer Support Tools",
     functions: [
       {
-        name: "get_weather",
-        description: "Get current weather information for a specific location",
+        name: "lookup_customer",
+        description: "Look up customer information by email or ID",
         parameters: {
           type: "object",
           properties: {
-            location: {
+            identifier: {
               type: "string",
-              description: "City name or location (e.g., 'San Francisco, CA')"
+              description: "Customer email or customer ID"
             },
-            units: {
-              type: "string",
-              description: "Temperature units",
-              enum: ["celsius", "fahrenheit"]
+            include_history: {
+              type: "boolean",
+              description: "Include purchase/support history"
             }
           },
-          required: ["location"]
+          required: ["identifier"]
         }
       },
       {
-        name: "get_flight_info",
-        description: "Get flight information between two locations",
+        name: "create_support_ticket",
+        description: "Create a new support ticket",
         parameters: {
           type: "object",
           properties: {
-            departure: {
+            customer_id: {
               type: "string",
-              description: "Departure city or airport code"
+              description: "Customer identifier"
             },
-            arrival: {
+            issue_type: {
               type: "string",
-              description: "Arrival city or airport code"
+              description: "Type of issue",
+              enum: ["billing", "technical", "account", "feature_request"]
             },
-            date: {
+            priority: {
               type: "string",
-              description: "Departure date (YYYY-MM-DD format)"
+              description: "Ticket priority",
+              enum: ["low", "medium", "high", "urgent"]
+            },
+            description: {
+              type: "string",
+              description: "Detailed description of the issue"
             }
           },
-          required: ["departure", "arrival", "date"]
+          required: ["customer_id", "issue_type", "description"]
+        }
+      },
+      {
+        name: "update_ticket_status",
+        description: "Update the status of an existing support ticket",
+        parameters: {
+          type: "object",
+          properties: {
+            ticket_id: {
+              type: "string",
+              description: "Ticket identifier"
+            },
+            status: {
+              type: "string",
+              description: "New ticket status",
+              enum: ["open", "in_progress", "waiting_customer", "resolved", "closed"]
+            },
+            notes: {
+              type: "string",
+              description: "Optional notes about the status change"
+            }
+          },
+          required: ["ticket_id", "status"]
         }
       }
     ]
   },
   {
-    name: "ecommerce",
-    description: "E-commerce Tools",
+    name: "knowledge_search",
+    description: "Knowledge Base Search",
     functions: [
       {
-        name: "search_products",
-        description: "Search for products in the catalog",
+        name: "search_documents",
+        description: "Search through company knowledge base and documentation",
         parameters: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query for products"
+              description: "Search query"
             },
-            category: {
-              type: "string",
-              description: "Product category to filter by",
-              enum: ["electronics", "clothing", "home", "books", "sports"]
+            filters: {
+              type: "object",
+              properties: {
+                document_type: {
+                  type: "string",
+                  description: "Type of document",
+                  enum: ["policy", "guide", "faq", "technical", "all"]
+                },
+                department: {
+                  type: "string",
+                  description: "Department filter"
+                },
+                date_range: {
+                  type: "string",
+                  description: "Filter by date range",
+                  enum: ["last_week", "last_month", "last_year", "all_time"]
+                }
+              }
             },
-            max_price: {
+            max_results: {
               type: "number",
-              description: "Maximum price filter"
-            },
-            min_rating: {
-              type: "number",
-              description: "Minimum rating filter (1-5)"
+              description: "Maximum number of results to return"
             }
           },
           required: ["query"]
         }
       },
       {
-        name: "get_product_details",
-        description: "Get detailed information about a specific product",
+        name: "get_document",
+        description: "Retrieve a specific document by ID",
         parameters: {
           type: "object",
           properties: {
-            product_id: {
+            document_id: {
               type: "string",
-              description: "Unique product identifier"
+              description: "Unique document identifier"
+            },
+            include_metadata: {
+              type: "boolean",
+              description: "Include document metadata"
             }
           },
-          required: ["product_id"]
+          required: ["document_id"]
         }
       },
       {
-        name: "add_to_cart",
-        description: "Add a product to the shopping cart",
+        name: "semantic_search",
+        description: "Perform semantic search across knowledge base",
         parameters: {
           type: "object",
           properties: {
-            product_id: {
+            query: {
               type: "string",
-              description: "Product identifier"
+              description: "Natural language search query"
             },
-            quantity: {
+            similarity_threshold: {
               type: "number",
-              description: "Quantity to add to cart"
+              description: "Minimum similarity score (0-1)"
+            },
+            collections: {
+              type: "array",
+              items: {
+                type: "string"
+              },
+              description: "Specific collections to search in"
             }
           },
-          required: ["product_id", "quantity"]
+          required: ["query"]
         }
       }
     ]
   },
   {
-    name: "data_analysis",
-    description: "Data Analysis Tools",
+    name: "code_generation",
+    description: "Code Generation Tools",
     functions: [
       {
-        name: "analyze_dataset",
-        description: "Perform statistical analysis on a dataset",
+        name: "list_files",
+        description: "List files in a directory",
         parameters: {
           type: "object",
           properties: {
-            dataset_name: {
+            directory_path: {
               type: "string",
-              description: "Name of the dataset to analyze"
+              description: "Path to the directory"
             },
-            analysis_type: {
+            pattern: {
               type: "string",
-              description: "Type of analysis to perform",
-              enum: ["summary", "correlation", "regression", "clustering"]
+              description: "File pattern to match (e.g., '*.py', '*.js')"
             },
-            columns: {
-              type: "string",
-              description: "Comma-separated list of columns to analyze"
+            recursive: {
+              type: "boolean",
+              description: "Search subdirectories recursively"
             }
           },
-          required: ["dataset_name", "analysis_type"]
+          required: ["directory_path"]
         }
       },
       {
-        name: "create_visualization",
-        description: "Create a data visualization",
+        name: "read_file",
+        description: "Read contents of a file",
         parameters: {
           type: "object",
           properties: {
-            dataset_name: {
+            file_path: {
               type: "string",
-              description: "Dataset to visualize"
+              description: "Path to the file"
             },
-            chart_type: {
+            encoding: {
               type: "string",
-              description: "Type of chart to create",
-              enum: ["bar", "line", "scatter", "histogram", "pie"]
-            },
-            x_axis: {
-              type: "string",
-              description: "Column for x-axis"
-            },
-            y_axis: {
-              type: "string",
-              description: "Column for y-axis"
+              description: "File encoding",
+              enum: ["utf-8", "ascii", "latin-1"]
             }
           },
-          required: ["dataset_name", "chart_type"]
+          required: ["file_path"]
+        }
+      },
+      {
+        name: "write_code",
+        description: "Generate and write code to a file",
+        parameters: {
+          type: "object",
+          properties: {
+            file_path: {
+              type: "string",
+              description: "Path where to write the file"
+            },
+            language: {
+              type: "string",
+              description: "Programming language",
+              enum: ["python", "javascript", "typescript", "java", "go", "rust"]
+            },
+            code_type: {
+              type: "string",
+              description: "Type of code to generate",
+              enum: ["function", "class", "module", "test", "script"]
+            },
+            description: {
+              type: "string",
+              description: "Description of what the code should do"
+            }
+          },
+          required: ["file_path", "language", "description"]
         }
       }
     ]
