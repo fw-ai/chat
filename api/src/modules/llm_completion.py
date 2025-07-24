@@ -2,7 +2,7 @@ import asyncio
 import time
 import json
 import aiohttp
-from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple
+from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple, List
 from dataclasses import dataclass
 from src.logger import logger
 from src.constants.configs import APP_CONFIG
@@ -217,7 +217,10 @@ class FireworksStreamer:
 
     @staticmethod
     def _prepare_base_payload(
-        model_config: Dict[str, Any], temperature: float, enable_perf_metrics: bool
+        model_config: Dict[str, Any],
+        temperature: float,
+        enable_perf_metrics: bool,
+        function_definitions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Prepare base payload common to both completion types"""
         payload = {
@@ -227,13 +230,21 @@ class FireworksStreamer:
             "max_tokens": _MAX_TOKENS_PER_REQUEST,
         }
 
+        if function_definitions and len(function_definitions) > 0:
+            tools = [
+                {"type": "function", "function": func_def}
+                for func_def in function_definitions
+            ]
+            payload["tools"] = tools
+
         if enable_perf_metrics:
             payload["perf_metrics_in_response"] = True
 
         return payload
 
+    @staticmethod
     async def _parse_streaming_response(
-        self, response: aiohttp.ClientResponse
+        response: aiohttp.ClientResponse,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Parse Server-Sent Events from streaming response"""
         buffer = ""
@@ -343,7 +354,6 @@ class FireworksStreamer:
 
             raise e
         finally:
-            # Clean up session
             if session and not session.closed:
                 try:
                     await session.close()
@@ -397,6 +407,7 @@ class FireworksStreamer:
         temperature: float = None,
         callback: Optional[Callable[[str, StreamingStats], None]] = None,
         enable_perf_metrics: bool = False,
+        function_definitions: Optional[List[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream chat completion from Fireworks model
@@ -408,6 +419,7 @@ class FireworksStreamer:
             temperature: Sampling temperature
             callback: Optional callback for streaming stats
             enable_perf_metrics: enable Fireworks SDK perf metrics tracking
+            function_definitions: Function definitions for prompt-based function calling
 
         Yields:
             Text chunks as they're generated
@@ -417,8 +429,12 @@ class FireworksStreamer:
         )
 
         model_config = self.config.get_model(model_key)
+
         payload = self._prepare_base_payload(
-            model_config, temperature, enable_perf_metrics
+            model_config=model_config,
+            temperature=temperature,
+            enable_perf_metrics=enable_perf_metrics,
+            function_definitions=function_definitions,
         )
         payload["messages"] = messages
 

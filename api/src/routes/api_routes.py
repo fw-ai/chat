@@ -22,13 +22,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Global instances
 config = FireworksConfig()
 session_manager = SessionManager(config.config)
 comparison_service = ComparisonService(session_manager)
@@ -43,7 +42,9 @@ class ChatMessage(BaseModel):
 class SingleChatRequest(BaseModel):
     model_key: str = Field(..., description="Model key from config")
     messages: List[ChatMessage] = Field(..., description="List of chat messages")
-    temperature: Optional[float] = Field(0.7, description="Sampling temperature")
+    temperature: Optional[float] = Field(
+        DEFAULT_TEMPERATURE, description="Sampling temperature"
+    )
     conversation_id: Optional[str] = Field(
         None, description="Conversation ID for single chat tracking"
     )
@@ -164,6 +165,7 @@ async def _stream_response_with_session(
             messages=messages,
             request_id=session_id,
             temperature=temperature,
+            function_definitions=function_definitions,
         ):
             assistant_content += chunk
             yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
@@ -191,7 +193,7 @@ async def get_available_models(function_calling: Optional[bool] = None):
     """Get all available models, optionally filtered by function calling capability"""
     try:
         models = _MODELS
-        if function_calling is not None:
+        if function_calling:
             filtered_models = {}
             for key, model in models.items():
                 model_supports_fc = model.get("function_calling", False)
@@ -205,6 +207,8 @@ async def get_available_models(function_calling: Optional[bool] = None):
             logger.info(
                 f"Function calling on: filtered models: {filtered_models.keys()}"
             )
+        else:
+            logger.info(f"Function calling off: all models: {_MODELS.keys()}")
 
         return {"models": models}
     except Exception as e:
