@@ -9,12 +9,42 @@ export interface Message {
   thinking?: string
   thinkingTime?: number
   sessionId?: string
+  function_calls?: FunctionCall[]
+  tool_calls?: FunctionCall[] // Alias for compatibility
 }
 
 export interface ChatModel {
   id: string
   name: string
   provider: string
+  function_calling?: boolean
+}
+
+export interface FunctionDefinition {
+  name: string
+  description: string
+  parameters: {
+    type: "object"
+    properties: Record<string, JSONSchemaProperty>
+    required?: string[]
+  }
+}
+
+interface JSONSchemaProperty {
+  type: string
+  description?: string
+  enum?: string[]
+  properties?: Record<string, JSONSchemaProperty>  // For nested objects
+  items?: JSONSchemaProperty  // For arrays
+}
+
+export interface FunctionCall {
+  id: string
+  name: string
+  arguments: Record<string, any>
+  status: 'calling' | 'completed' | 'error'
+  result?: any
+  error?: string
 }
 
 export interface ChatState {

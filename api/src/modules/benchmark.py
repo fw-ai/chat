@@ -3,7 +3,11 @@ import json
 import asyncio
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 from dataclasses import dataclass, asdict
-from src.modules.llm_completion import FireworksBenchmark, FireworksConfig
+from src.modules.llm_completion import (
+    FireworksBenchmark,
+    FireworksConfig,
+    DEFAULT_TEMPERATURE,
+)
 from src.logger import logger
 
 
@@ -15,7 +19,7 @@ class BenchmarkRequest:
     prompt: str
     concurrency: int = 10
     max_tokens: int = 256
-    temperature: float = 0.7
+    temperature: float = DEFAULT_TEMPERATURE
     test_duration: Optional[int] = None  # seconds
 
 
@@ -243,7 +247,7 @@ class FireworksBenchmarkService:
         prompt: str,
         concurrency: int = 10,
         max_tokens: int = 256,
-        temperature: float = 0.7,
+        temperature: float = DEFAULT_TEMPERATURE,
         live_metrics_callback: Optional[
             Callable[[Dict[str, Any]], Awaitable[None]]
         ] = None,

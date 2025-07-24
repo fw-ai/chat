@@ -7,6 +7,7 @@ import { ComparisonInterface } from "@/components/comparison-interface"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
+import type { FunctionDefinition } from "@/types/chat"
 
 export type ViewType = "single" | "comparison"
 
@@ -14,6 +15,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>("single")
   const [speedTestEnabled, setSpeedTestEnabled] = useState(false)
   const [concurrency, setConcurrency] = useState(5)
+  const [functionCallingEnabled, setFunctionCallingEnabled] = useState(false)
+  const [functionDefinitions, setFunctionDefinitions] = useState<FunctionDefinition[]>([])
   const [apiKey, setApiKey] = useState("")
   const [clearChatFn, setClearChatFn] = useState<(() => void) | null>(null)
 
@@ -43,6 +46,9 @@ export default function App() {
         onSpeedTestToggle={handleSpeedTestToggle}
         concurrency={concurrency}
         onConcurrencyChange={setConcurrency}
+        functionCallingEnabled={functionCallingEnabled}
+        onFunctionCallingToggle={setFunctionCallingEnabled}
+        onFunctionDefinitionsChange={setFunctionDefinitions}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
       />
@@ -50,17 +56,8 @@ export default function App() {
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between w-full">
-              {/* Clear Chat Button - Left Side */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearChat}
-                disabled={!clearChatFn}
-                className="flex items-center gap-2"
-              >
-                <Trash2 size={16} />
-                Clear Chat
-              </Button>
+              {/* Left Side (empty, Clear Chat Button removed) */}
+              <div />
 
               {/* Powered by - Right Side */}
               <div
@@ -76,12 +73,20 @@ export default function App() {
 
         <main className="flex-1 p-6">
           {currentView === "single" ? (
-            <ChatInterface apiKey={apiKey} />
+            <ChatInterface
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
+              functionDefinitions={functionDefinitions}
+              onClearChatReady={handleClearChatReady}
+            />
           ) : (
             <ComparisonInterface
               speedTestEnabled={speedTestEnabled}
               concurrency={concurrency}
+              functionCallingEnabled={functionCallingEnabled}
+              functionDefinitions={functionDefinitions}
               apiKey={apiKey}
+              onClearChatReady={handleClearChatReady}
             />
           )}
         </main>

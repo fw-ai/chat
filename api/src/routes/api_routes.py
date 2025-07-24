@@ -5,12 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
 import uuid
+
 from src.modules.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging
 from src.services.comparison_service import ComparisonService, MetricsStreamer
 from src.logger import logger
-
+from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
+from src.modules.llm_completion import DEFAULT_TEMPERATURE
 
 app = FastAPI(
     title="Fireworks Chat & Benchmark API",
@@ -20,13 +22,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Global instances
 config = FireworksConfig()
 session_manager = SessionManager(config.config)
 comparison_service = ComparisonService(session_manager)
@@ -41,19 +42,26 @@ class ChatMessage(BaseModel):
 class SingleChatRequest(BaseModel):
     model_key: str = Field(..., description="Model key from config")
     messages: List[ChatMessage] = Field(..., description="List of chat messages")
-    temperature: Optional[float] = Field(0.7, description="Sampling temperature")
+    temperature: Optional[float] = Field(
+        DEFAULT_TEMPERATURE, description="Sampling temperature"
+    )
     conversation_id: Optional[str] = Field(
         None, description="Conversation ID for single chat tracking"
     )
     comparison_id: Optional[str] = Field(
         None, description="Comparison ID when part of a comparison chat"
     )
+    function_definitions: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Function definitions for prompt-based function calling"
+    )
 
 
 class ChatCompletionRequest(BaseModel):
     model_key: str = Field(..., description="Model key from config")
     messages: List[ChatMessage] = Field(..., description="List of chat messages")
-    temperature: Optional[float] = Field(0.7, description="Sampling temperature")
+    temperature: Optional[float] = Field(
+        DEFAULT_TEMPERATURE, description="Sampling temperature"
+    )
     conversation_id: Optional[str] = Field(
         None, description="Conversation ID for tracking"
     )
@@ -100,6 +108,9 @@ class ComparisonInitRequest(BaseModel):
         ..., min_items=2, max_items=4, description="Models to compare"
     )
     messages: List[ChatMessage] = Field(..., description="Initial conversation context")
+    function_definitions: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Function definitions for prompt-based function calling"
+    )
 
 
 def validate_model_key(model_key: str) -> bool:
@@ -123,30 +134,64 @@ async def _stream_response_with_session(
     temperature: Optional[float],
     error_context: str,
     client_api_key: str,
+    function_definitions: Optional[List[Dict[str, Any]]] = None,
 ):
     """Helper to stream chat responses and save assistant responses to session."""
     assistant_content = ""
 
     try:
-        # Create a new streamer instance with the client's API key
         client_streamer = FireworksStreamer(client_api_key)
+
+        # Get the latest user message to format with appropriate prompt
+        if messages and messages[-1].get("role") == "user":
+            user_request = messages[-1]["content"]
+
+            # Use function calling prompt if function definitions are provided, otherwise default prompt
+            if function_definitions and len(function_definitions) > 0:
+                logger.info("Using function calling prompt with function definitions")
+                formatted_prompt = add_function_calling_to_prompt(
+                    user_request, function_definitions
+                )
+            else:
+                logger.info("Using default prompt")
+                formatted_prompt = add_user_request_to_prompt(user_request)
+
+            # Replace the last message with the formatted prompt
+            messages[-1] = {"role": "user", "content": formatted_prompt}
+
+        # Stream chat completion using the formatted messages
+        # Check if we have function definitions to determine if we need tool support
+        use_tools = function_definitions and len(function_definitions) > 0
 
         async for chunk in client_streamer.stream_chat_completion(
             model_key=model_key,
             messages=messages,
             request_id=session_id,
             temperature=temperature,
+            function_definitions=function_definitions,
+            include_tools=use_tools,
         ):
-            assistant_content += chunk
-            yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+            if use_tools:
+                # Enhanced mode with tool calls
+                if "content" in chunk and chunk["content"]:
+                    assistant_content += chunk["content"]
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk['content']})}\n\n"
 
-        # Save assistant response to session
+                if "tool_calls" in chunk and chunk["tool_calls"]:
+                    yield f"data: {json.dumps({'type': 'tool_calls', 'tool_calls': chunk['tool_calls']})}\n\n"
+
+                if "finish_reason" in chunk and chunk["finish_reason"]:
+                    yield f"data: {json.dumps({'type': 'finish_reason', 'finish_reason': chunk['finish_reason']})}\n\n"
+            else:
+                # Legacy text-only mode
+                assistant_content += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+
         if assistant_content:
             session_manager.add_assistant_message(
                 session_id, assistant_content, model_key
             )
 
-        # Send completion signal
         yield f"data: {json.dumps({'type': 'done', 'session_id': session_id})}\n\n"
 
     except Exception as e:
@@ -161,10 +206,28 @@ async def root():
 
 
 @app.get("/models")
-async def get_available_models():
-    """Get all available models"""
+async def get_available_models(function_calling: Optional[bool] = None):
+    """Get all available models, optionally filtered by function calling capability"""
     try:
-        return {"models": _MODELS}
+        models = _MODELS
+        if function_calling:
+            filtered_models = {}
+            for key, model in models.items():
+                model_supports_fc = model.get("function_calling", False)
+                if function_calling and model_supports_fc:
+                    filtered_models[key] = model
+                elif not function_calling and not model_supports_fc:
+                    filtered_models[key] = model
+                elif not function_calling:
+                    filtered_models[key] = model
+            models = filtered_models
+            logger.info(
+                f"Function calling on: filtered models: {filtered_models.keys()}"
+            )
+        else:
+            logger.info(f"Function calling off: all models: {_MODELS.keys()}")
+
+        return {"models": models}
     except Exception as e:
         logger.error(f"Error getting models: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get available models")
@@ -215,7 +278,6 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
         client_api_key = await get_validated_api_key(http_request)
-
         if not validate_model_key(request.model_key):
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
@@ -256,6 +318,7 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
                 temperature=request.temperature,
                 error_context=f"{session_type} chat",
                 client_api_key=client_api_key,
+                function_definitions=request.function_definitions,
             ),
             media_type="text/event-stream",
             headers={

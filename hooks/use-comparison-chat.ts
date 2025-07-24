@@ -7,7 +7,7 @@ import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 
-export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string) {
+export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string, functionDefinitions?: any[]) {
   const [state, setState] = useState<ComparisonChatState>({
     leftChat: { messages: [], isLoading: false, error: null },
     rightChat: { messages: [], isLoading: false, error: null },
@@ -216,6 +216,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         const comparisonInit = await apiClient.initializeComparison({
           messages,
           model_keys: [leftModel.id, rightModel.id],
+          function_definitions: functionDefinitions,
           apiKey: apiKey!,
         })
 
@@ -237,31 +238,87 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               messages,
               model: leftModel.id,
               conversation_id: state.sessionId,
+              function_definitions: functionDefinitions,
               apiKey: apiKey!,
             }, comparisonId)
 
             let leftContent = ""
+            let leftToolCalls: any[] = []
             const startTime = Date.now()
 
-            for await (const chunk of apiClient.streamResponse(leftStream)) {
-              leftContent += chunk
-              const leftParsed = parseThinkingContent(leftContent, startTime)
-              setState((prev) => ({
-                ...prev,
-                leftChat: {
-                  ...prev.leftChat,
-                  messages: prev.leftChat.messages.map((msg) =>
-                    msg.id === leftAssistantMessage.id
-                      ? {
-                          ...msg,
-                          content: leftParsed.content,
-                          thinking: leftParsed.thinking,
-                          thinkingTime: leftParsed.thinkingTime,
-                        }
-                      : msg,
-                  ),
-                },
-              }))
+            // Parse SSE stream manually to handle different message types
+            const reader = leftStream.getReader()
+            const decoder = new TextDecoder()
+
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                const chunk = decoder.decode(value, { stream: true })
+                const lines = chunk.split('\n')
+
+                for (const line of lines) {
+                  if (line.trim() === '') continue
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6)
+                    if (data === '[DONE]') break
+
+                    try {
+                      const parsed = JSON.parse(data)
+
+                      // Handle different SSE message types
+                      if (parsed.type === 'content' && parsed.content) {
+                        // Regular content
+                        leftContent += parsed.content
+                        const leftParsed = parseThinkingContent(leftContent, startTime)
+
+                        setState((prev) => ({
+                          ...prev,
+                          leftChat: {
+                            ...prev.leftChat,
+                            messages: prev.leftChat.messages.map((msg) =>
+                              msg.id === leftAssistantMessage.id
+                                ? {
+                                    ...msg,
+                                    content: leftParsed.content,
+                                    thinking: leftParsed.thinking,
+                                    thinkingTime: leftParsed.thinkingTime,
+                                    tool_calls: leftToolCalls.length > 0 ? leftToolCalls : msg.tool_calls,
+                                  }
+                                : msg,
+                            ),
+                          },
+                        }))
+                      } else if (parsed.type === 'tool_calls' && parsed.tool_calls) {
+                        // Tool calls received
+                        leftToolCalls = parsed.tool_calls
+
+                        setState((prev) => ({
+                          ...prev,
+                          leftChat: {
+                            ...prev.leftChat,
+                            messages: prev.leftChat.messages.map((msg) =>
+                              msg.id === leftAssistantMessage.id
+                                ? { ...msg, tool_calls: leftToolCalls }
+                                : msg,
+                            ),
+                          },
+                        }))
+                      } else if (parsed.type === 'done') {
+                        // Stream finished
+                        break
+                      } else if (parsed.type === 'error') {
+                        throw new Error(parsed.error || 'Unknown error')
+                      }
+                    } catch (e) {
+                      console.warn('Failed to parse left SSE data:', data)
+                    }
+                  }
+                }
+              }
+            } finally {
+              reader.releaseLock()
             }
 
             // Mark left model as done
@@ -300,31 +357,87 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               messages,
               model: rightModel.id,
               conversation_id: state.sessionId,
+              function_definitions: functionDefinitions,
               apiKey: apiKey!,
             }, comparisonId)
 
             let rightContent = ""
+            let rightToolCalls: any[] = []
             const startTime = Date.now()
 
-            for await (const chunk of apiClient.streamResponse(rightStream)) {
-              rightContent += chunk
-              const rightParsed = parseThinkingContent(rightContent, startTime)
-              setState((prev) => ({
-                ...prev,
-                rightChat: {
-                  ...prev.rightChat,
-                  messages: prev.rightChat.messages.map((msg) =>
-                    msg.id === rightAssistantMessage.id
-                      ? {
-                          ...msg,
-                          content: rightParsed.content,
-                          thinking: rightParsed.thinking,
-                          thinkingTime: rightParsed.thinkingTime,
-                        }
-                      : msg,
-                  ),
-                },
-              }))
+            // Parse SSE stream manually to handle different message types
+            const reader = rightStream.getReader()
+            const decoder = new TextDecoder()
+
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                const chunk = decoder.decode(value, { stream: true })
+                const lines = chunk.split('\n')
+
+                for (const line of lines) {
+                  if (line.trim() === '') continue
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6)
+                    if (data === '[DONE]') break
+
+                    try {
+                      const parsed = JSON.parse(data)
+
+                      // Handle different SSE message types
+                      if (parsed.type === 'content' && parsed.content) {
+                        // Regular content
+                        rightContent += parsed.content
+                        const rightParsed = parseThinkingContent(rightContent, startTime)
+
+                        setState((prev) => ({
+                          ...prev,
+                          rightChat: {
+                            ...prev.rightChat,
+                            messages: prev.rightChat.messages.map((msg) =>
+                              msg.id === rightAssistantMessage.id
+                                ? {
+                                    ...msg,
+                                    content: rightParsed.content,
+                                    thinking: rightParsed.thinking,
+                                    thinkingTime: rightParsed.thinkingTime,
+                                    tool_calls: rightToolCalls.length > 0 ? rightToolCalls : msg.tool_calls,
+                                  }
+                                : msg,
+                            ),
+                          },
+                        }))
+                      } else if (parsed.type === 'tool_calls' && parsed.tool_calls) {
+                        // Tool calls received
+                        rightToolCalls = parsed.tool_calls
+
+                        setState((prev) => ({
+                          ...prev,
+                          rightChat: {
+                            ...prev.rightChat,
+                            messages: prev.rightChat.messages.map((msg) =>
+                              msg.id === rightAssistantMessage.id
+                                ? { ...msg, tool_calls: rightToolCalls }
+                                : msg,
+                            ),
+                          },
+                        }))
+                      } else if (parsed.type === 'done') {
+                        // Stream finished
+                        break
+                      } else if (parsed.type === 'error') {
+                        throw new Error(parsed.error || 'Unknown error')
+                      }
+                    } catch (e) {
+                      console.warn('Failed to parse right SSE data:', data)
+                    }
+                  }
+                }
+              }
+            } finally {
+              reader.releaseLock()
             }
 
             // Mark right model as done
@@ -436,7 +549,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         }))
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions],
   )
 
   const clearChat = useCallback(() => {

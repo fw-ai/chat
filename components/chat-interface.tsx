@@ -14,12 +14,14 @@ import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
 interface ChatInterfaceProps {
   apiKey: string
+  functionCallingEnabled?: boolean
+  functionDefinitions?: any[]
   onClearChatReady?: (clearChatFn: () => void) => void
 }
 
-export function ChatInterface({ apiKey, onClearChatReady }: ChatInterfaceProps) {
+export function ChatInterface({ apiKey, functionCallingEnabled = false, functionDefinitions, onClearChatReady }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
-  const { models, isLoading: modelsLoading } = useModels(apiKey)
+  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
 
   // Auto-select first model when models load (only if no cached selection)
   useEffect(() => {
@@ -28,7 +30,7 @@ export function ChatInterface({ apiKey, onClearChatReady }: ChatInterfaceProps) 
     }
   }, [models, modelsLoading, selectedModel, setSelectedModel])
 
-  const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey)
+  const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey, functionDefinitions)
 
   // Expose clearChat function to parent component
   useEffect(() => {
@@ -62,6 +64,8 @@ export function ChatInterface({ apiKey, onClearChatReady }: ChatInterfaceProps) 
           onModelChange={setSelectedModel}
           className="w-64"
           disabled={!hasApiKey}
+          apiKey={apiKey}
+          functionCallingEnabled={functionCallingEnabled}
         />
       </div>
 

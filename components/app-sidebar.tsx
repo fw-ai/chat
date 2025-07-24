@@ -1,6 +1,6 @@
 "use client"
 
-import { MessageSquare, GitCompare, Plus, ChevronLeft, ChevronRight, Rocket, Key, Eye, EyeOff, Info } from "lucide-react"
+import { MessageSquare, GitCompare, Plus, ChevronLeft, ChevronRight, Rocket, Key, Eye, EyeOff, Info, Code } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import {
@@ -22,6 +22,9 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { FunctionDefinitionModal } from "@/components/function-definition-modal"
+import type { FunctionDefinition } from "@/types/chat"
 
 export type ViewType = "single" | "comparison"
 
@@ -32,6 +35,9 @@ interface AppSidebarProps {
   onSpeedTestToggle?: (enabled: boolean) => void
   concurrency?: number
   onConcurrencyChange?: (concurrency: number) => void
+  functionCallingEnabled?: boolean
+  onFunctionCallingToggle?: (enabled: boolean) => void
+  onFunctionDefinitionsChange?: (functions: any[]) => void
   apiKey?: string
   onApiKeyChange?: (apiKey: string) => void
 }
@@ -43,12 +49,17 @@ export function AppSidebar({
   onSpeedTestToggle,
   concurrency = 1,
   onConcurrencyChange,
+  functionCallingEnabled = false,
+  onFunctionCallingToggle,
+  onFunctionDefinitionsChange,
   apiKey: externalApiKey = "",
   onApiKeyChange
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar()
   const [internalApiKey, setInternalApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
+  const [showFunctionModal, setShowFunctionModal] = useState(false)
+  const [currentFunctions, setCurrentFunctions] = useState<FunctionDefinition[]>([])
 
   // Use external API key if provided, otherwise use internal state
   const apiKey = externalApiKey || internalApiKey
@@ -82,6 +93,37 @@ export function AppSidebar({
   const handleApiKeyChange = (value: string) => {
     setApiKey(value)
     // Note: No localStorage - keeping only in memory for security
+  }
+
+  const handleFunctionCallingToggle = (enabled: boolean) => {
+    if (enabled) {
+      // Always show modal when trying to enable function calling
+      setShowFunctionModal(true)
+      // Don't change the toggle state yet - wait for modal save/cancel
+    } else {
+      // Disable function calling immediately when turned off
+      onFunctionCallingToggle?.(false)
+      setCurrentFunctions([])
+      onFunctionDefinitionsChange?.([])
+    }
+  }
+
+  const handleFunctionsSave = (functions: FunctionDefinition[]) => {
+    setCurrentFunctions(functions)
+    onFunctionDefinitionsChange?.(functions)
+    onFunctionCallingToggle?.(true)
+    setShowFunctionModal(false)
+  }
+
+  const handleFunctionModalClose = () => {
+    setShowFunctionModal(false)
+    // Don't enable function calling if modal was closed without saving
+    // The toggle will remain in its previous state
+  }
+
+  const handleEditFunctions = () => {
+    // Allow editing functions when already enabled
+    setShowFunctionModal(true)
   }
 
   const menuItems = [
@@ -267,6 +309,87 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Advanced Features - Show for both single and comparison modes */}
+        <SidebarGroup>
+          {open && <SidebarGroupLabel>Advanced Features</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <div className="space-y-4 px-2">
+              {/* Function Calling Toggle */}
+              {open && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Code className="h-4 w-4" />
+                      <Label htmlFor="function-calling" className="text-sm">
+                        Enable Function Calling
+                      </Label>
+                    </div>
+                    <Switch
+                      id="function-calling"
+                      checked={functionCallingEnabled}
+                      onCheckedChange={handleFunctionCallingToggle}
+                      disabled={!hasApiKey}
+                    />
+                  </div>
+
+                  {/* Function Preview Badges */}
+                  {functionCallingEnabled && currentFunctions.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">
+                          Functions ({currentFunctions.length})
+                        </Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleEditFunctions}
+                          className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {currentFunctions.map((func, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {func.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Function Calling Icon for collapsed state */}
+              {!open && (
+                <div className="px-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`w-full justify-center p-2 ${
+                          functionCallingEnabled && hasApiKey ? 'text-blue-600' : 'text-muted-foreground'
+                        } ${!hasApiKey ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onClick={() => hasApiKey && setOpen(true)}
+                        disabled={!hasApiKey}
+                      >
+                        <Code className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>
+                        {!hasApiKey ? "API key required" :
+                         functionCallingEnabled ? "Function calling enabled" : "Enable function calling"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Speed Test Controls - Only show for comparison mode */}
         {currentView === "comparison" && (
           <SidebarGroup>
@@ -342,6 +465,14 @@ export function AppSidebar({
       </div>
 
       <SidebarRail />
+
+      {/* Function Definition Modal */}
+      <FunctionDefinitionModal
+        isOpen={showFunctionModal}
+        onClose={handleFunctionModalClose}
+        onSave={handleFunctionsSave}
+        initialFunctions={currentFunctions}
+      />
     </Sidebar>
   )
 }

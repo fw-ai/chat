@@ -7,7 +7,7 @@ import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 
-export function useChat(model?: ChatModel, apiKey?: string) {
+export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?: any[]) {
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -160,28 +160,81 @@ export function useChat(model?: ChatModel, apiKey?: string) {
           messages,
           model: model.id,
           conversation_id: state.sessionId, // Use session ID for conversation continuity
+          function_definitions: functionDefinitions,
           apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
         })
 
         let fullContent = ""
+        let toolCalls: any[] = []
         const startTime = Date.now()
-        for await (const chunk of apiClient.streamResponse(stream)) {
-          fullContent += chunk
-          const parsed = parseThinkingContent(fullContent, startTime)
 
-          setState((prev) => ({
-            ...prev,
-            messages: prev.messages.map((msg) =>
-              msg.id === assistantMessage.id
-                ? {
-                    ...msg,
-                    content: parsed.content,
-                    thinking: parsed.thinking,
-                    thinkingTime: parsed.thinkingTime,
+        // We need to parse the SSE stream manually to handle different message types
+        const reader = stream.getReader()
+        const decoder = new TextDecoder()
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.trim() === '') continue
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') break
+
+                try {
+                  const parsed = JSON.parse(data)
+
+                  // Handle different SSE message types
+                  if (parsed.type === 'content' && parsed.content) {
+                    // Regular content
+                    fullContent += parsed.content
+                    const contentParsed = parseThinkingContent(fullContent, startTime)
+
+                    setState((prev) => ({
+                      ...prev,
+                      messages: prev.messages.map((msg) =>
+                        msg.id === assistantMessage.id
+                          ? {
+                              ...msg,
+                              content: contentParsed.content,
+                              thinking: contentParsed.thinking,
+                              thinkingTime: contentParsed.thinkingTime,
+                              tool_calls: toolCalls.length > 0 ? toolCalls : msg.tool_calls,
+                            }
+                          : msg,
+                      ),
+                    }))
+                  } else if (parsed.type === 'tool_calls' && parsed.tool_calls) {
+                    // Tool calls received
+                    toolCalls = parsed.tool_calls
+
+                    setState((prev) => ({
+                      ...prev,
+                      messages: prev.messages.map((msg) =>
+                        msg.id === assistantMessage.id
+                          ? { ...msg, tool_calls: toolCalls }
+                          : msg,
+                      ),
+                    }))
+                  } else if (parsed.type === 'done') {
+                    // Stream finished
+                    break
+                  } else if (parsed.type === 'error') {
+                    throw new Error(parsed.error || 'Unknown error')
                   }
-                : msg,
-            ),
-          }))
+                } catch (e) {
+                  console.warn('Failed to parse SSE data:', data)
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock()
         }
 
         setState((prev) => ({
@@ -205,7 +258,7 @@ export function useChat(model?: ChatModel, apiKey?: string) {
         }))
       }
     },
-    [model, conversationId, state.sessionId, apiKey],
+    [model, conversationId, state.sessionId, apiKey, functionDefinitions],
   )
 
   const clearChat = useCallback(() => {
