@@ -270,23 +270,31 @@ class FireworksStreamer:
                         logger.warning(f"Failed to parse JSON: {data_str}")
                         continue
 
+    @staticmethod
     def _extract_completion_text(
-        self, chunk_data: Dict[str, Any], is_chat: bool = False
-    ) -> Tuple[str, Optional[str]]:
-        """Extract text and finish_reason from chunk data for both completion types"""
+        chunk_data: Dict[str, Any], is_chat: bool = False
+    ) -> Tuple[str, Optional[str], Optional[List[Dict[str, Any]]]]:
+        """Extract text, finish_reason, and tool_calls from chunk data for both completion types"""
         if "choices" not in chunk_data or len(chunk_data["choices"]) == 0:
-            return "", None
+            return "", None, None
 
         choice = chunk_data["choices"][0]
         finish_reason = choice.get("finish_reason")
+        tool_calls = None
 
         if is_chat:
             delta = choice.get("delta", {})
             text = delta.get("content", "")
+            # Check for tool calls in the delta
+            if "tool_calls" in delta:
+                tool_calls = delta["tool_calls"]
         else:
             text = choice.get("text", "")
+            # For completions, tool calls might be in the choice itself
+            if "tool_calls" in choice:
+                tool_calls = choice["tool_calls"]
 
-        return text, finish_reason
+        return text, finish_reason, tool_calls
 
     @staticmethod
     def _process_performance_metrics(
@@ -307,9 +315,14 @@ class FireworksStreamer:
         callback: Optional[Callable[[str, StreamingStats], None]],
         enable_perf_metrics: bool,
         is_chat: bool = False,
-    ) -> AsyncGenerator[str, None]:
+        include_tools: bool = False,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """Core streaming logic shared between completion types"""
         session = None
+
+        # Track tool calls across chunks
+        accumulated_tool_calls = {}
+
         try:
             try:
                 session = aiohttp.ClientSession()
@@ -328,21 +341,102 @@ class FireworksStreamer:
                 response.raise_for_status()
 
                 async for chunk_data in self._parse_streaming_response(response):
-                    text, finish_reason = self._extract_completion_text(
-                        chunk_data, is_chat
+                    text, finish_reason, tool_calls_delta = (
+                        self._extract_completion_text(chunk_data, is_chat)
                     )
                     self._process_performance_metrics(
                         chunk_data, stats, finish_reason, enable_perf_metrics
                     )
                     stats.update_usage_from_chunk(chunk_data)
 
+                    # Process tool calls if present
+                    if include_tools and tool_calls_delta:
+                        for tool_call in tool_calls_delta:
+                            index = tool_call.get("index", 0)
+
+                            # Initialize this tool call if we haven't seen it
+                            if index not in accumulated_tool_calls:
+                                accumulated_tool_calls[index] = {
+                                    "id": "",
+                                    "name": "",
+                                    "arguments": "",
+                                    "type": "function",
+                                }
+
+                            # Update tool call ID if provided
+                            if tool_call.get("id"):
+                                accumulated_tool_calls[index]["id"] = tool_call["id"]
+
+                            # Update function name if provided
+                            if tool_call.get("function") and tool_call["function"].get(
+                                "name"
+                            ):
+                                accumulated_tool_calls[index]["name"] = tool_call[
+                                    "function"
+                                ]["name"]
+
+                            # Accumulate arguments if provided
+                            if tool_call.get("function") and tool_call["function"].get(
+                                "arguments"
+                            ):
+                                accumulated_tool_calls[index]["arguments"] += tool_call[
+                                    "function"
+                                ]["arguments"]
+
+                    result = {}
                     if text:
                         stats.update_manual_tracking(text)
-
                         if callback:
                             callback(text, stats)
 
-                        yield text
+                        if include_tools:
+                            result["content"] = text
+                        else:
+                            # Legacy mode: yield just the text string
+                            yield {"text": text}
+                            continue
+
+                    # Send accumulated tool calls when we have a finish reason of "tool_calls"
+                    if (
+                        include_tools
+                        and finish_reason == "tool_calls"
+                        and accumulated_tool_calls
+                    ):
+                        # Parse completed tool calls
+                        completed_tool_calls = []
+                        for index, tool_call in accumulated_tool_calls.items():
+                            try:
+                                # Try to parse the JSON arguments
+                                parsed_args = (
+                                    json.loads(tool_call["arguments"])
+                                    if tool_call["arguments"]
+                                    else {}
+                                )
+                                completed_tool_calls.append(
+                                    {
+                                        "id": tool_call["id"],
+                                        "name": tool_call["name"],
+                                        "arguments": parsed_args,
+                                    }
+                                )
+                            except json.JSONDecodeError:
+                                # If JSON parsing fails, send raw arguments
+                                completed_tool_calls.append(
+                                    {
+                                        "id": tool_call["id"],
+                                        "name": tool_call["name"],
+                                        "arguments": tool_call["arguments"],
+                                    }
+                                )
+
+                        result["tool_calls"] = completed_tool_calls
+
+                    if include_tools and finish_reason:
+                        result["finish_reason"] = finish_reason
+
+                    # For include_tools mode, only yield if we have something
+                    if include_tools and result:
+                        yield result
 
         except Exception as e:
             error_msg = f"Error in streaming {endpoint}: {str(e)}"
@@ -397,7 +491,7 @@ class FireworksStreamer:
         async for chunk in self._stream_request(
             "completions", payload, stats, callback, enable_perf_metrics, is_chat=False
         ):
-            yield chunk
+            yield chunk.get("text", "")
 
     async def stream_chat_completion(
         self,
@@ -408,7 +502,8 @@ class FireworksStreamer:
         callback: Optional[Callable[[str, StreamingStats], None]] = None,
         enable_perf_metrics: bool = False,
         function_definitions: Optional[List[Dict[str, Any]]] = None,
-    ) -> AsyncGenerator[str, None]:
+        include_tools: bool = False,
+    ) -> AsyncGenerator[Any, None]:
         """
         Stream chat completion from Fireworks model
 
@@ -420,6 +515,7 @@ class FireworksStreamer:
             callback: Optional callback for streaming stats
             enable_perf_metrics: enable Fireworks SDK perf metrics tracking
             function_definitions: Function definitions for prompt-based function calling
+            include_tools: Include tools in the response
 
         Yields:
             Text chunks as they're generated
@@ -445,8 +541,12 @@ class FireworksStreamer:
             callback,
             enable_perf_metrics,
             is_chat=True,
+            include_tools=include_tools,
         ):
-            yield chunk
+            if include_tools:
+                yield chunk
+            else:
+                yield chunk.get("text", "")
 
     async def close(self):
         """Close the aiohttp session"""

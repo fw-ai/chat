@@ -160,15 +160,32 @@ async def _stream_response_with_session(
             messages[-1] = {"role": "user", "content": formatted_prompt}
 
         # Stream chat completion using the formatted messages
+        # Check if we have function definitions to determine if we need tool support
+        use_tools = function_definitions and len(function_definitions) > 0
+
         async for chunk in client_streamer.stream_chat_completion(
             model_key=model_key,
             messages=messages,
             request_id=session_id,
             temperature=temperature,
             function_definitions=function_definitions,
+            include_tools=use_tools,
         ):
-            assistant_content += chunk
-            yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+            if use_tools:
+                # Enhanced mode with tool calls
+                if "content" in chunk and chunk["content"]:
+                    assistant_content += chunk["content"]
+                    yield f"data: {json.dumps({'type': 'content', 'content': chunk['content']})}\n\n"
+
+                if "tool_calls" in chunk and chunk["tool_calls"]:
+                    yield f"data: {json.dumps({'type': 'tool_calls', 'tool_calls': chunk['tool_calls']})}\n\n"
+
+                if "finish_reason" in chunk and chunk["finish_reason"]:
+                    yield f"data: {json.dumps({'type': 'finish_reason', 'finish_reason': chunk['finish_reason']})}\n\n"
+            else:
+                # Legacy text-only mode
+                assistant_content += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
 
         if assistant_content:
             session_manager.add_assistant_message(

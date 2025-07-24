@@ -2,7 +2,7 @@
 
 import type { Message } from "@/types/chat"
 import { Button } from "@/components/ui/button"
-import { Copy, AlertCircle } from "lucide-react"
+import { Copy, AlertCircle, Wrench } from "lucide-react"
 import { useState } from "react"
 import Image from "next/image"
 import { ThinkingDisplay } from "@/components/thinking-display"
@@ -73,6 +73,26 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
             thinkingTime={message.thinkingTime}
             isStreaming={message.isStreaming}
           />
+        )}
+
+        {/* Function calls display */}
+        {(message.function_calls || message.tool_calls) && (
+          <div className="space-y-2">
+            {(message.function_calls || message.tool_calls)?.map((toolCall, index) => (
+              <div key={index} className="bg-muted/50 border border-muted-foreground/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wrench size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-medium">Function Call: {toolCall.name || toolCall.function?.name}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <div className="font-medium mb-1">Arguments:</div>
+                  <pre className="bg-muted/30 p-2 rounded text-xs overflow-x-auto">
+                    {JSON.stringify(toolCall.arguments || toolCall.function?.arguments, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         <div className="min-w-0 max-w-full" style={{ maxWidth: '100%', minWidth: '0', width: '100%' }}>

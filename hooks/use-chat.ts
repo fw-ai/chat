@@ -165,24 +165,76 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         })
 
         let fullContent = ""
+        let toolCalls: any[] = []
         const startTime = Date.now()
-        for await (const chunk of apiClient.streamResponse(stream)) {
-          fullContent += chunk
-          const parsed = parseThinkingContent(fullContent, startTime)
 
-          setState((prev) => ({
-            ...prev,
-            messages: prev.messages.map((msg) =>
-              msg.id === assistantMessage.id
-                ? {
-                    ...msg,
-                    content: parsed.content,
-                    thinking: parsed.thinking,
-                    thinkingTime: parsed.thinkingTime,
+        // We need to parse the SSE stream manually to handle different message types
+        const reader = stream.getReader()
+        const decoder = new TextDecoder()
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.trim() === '') continue
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') break
+
+                try {
+                  const parsed = JSON.parse(data)
+
+                  // Handle different SSE message types
+                  if (parsed.type === 'content' && parsed.content) {
+                    // Regular content
+                    fullContent += parsed.content
+                    const contentParsed = parseThinkingContent(fullContent, startTime)
+
+                    setState((prev) => ({
+                      ...prev,
+                      messages: prev.messages.map((msg) =>
+                        msg.id === assistantMessage.id
+                          ? {
+                              ...msg,
+                              content: contentParsed.content,
+                              thinking: contentParsed.thinking,
+                              thinkingTime: contentParsed.thinkingTime,
+                              tool_calls: toolCalls.length > 0 ? toolCalls : msg.tool_calls,
+                            }
+                          : msg,
+                      ),
+                    }))
+                  } else if (parsed.type === 'tool_calls' && parsed.tool_calls) {
+                    // Tool calls received
+                    toolCalls = parsed.tool_calls
+
+                    setState((prev) => ({
+                      ...prev,
+                      messages: prev.messages.map((msg) =>
+                        msg.id === assistantMessage.id
+                          ? { ...msg, tool_calls: toolCalls }
+                          : msg,
+                      ),
+                    }))
+                  } else if (parsed.type === 'done') {
+                    // Stream finished
+                    break
+                  } else if (parsed.type === 'error') {
+                    throw new Error(parsed.error || 'Unknown error')
                   }
-                : msg,
-            ),
-          }))
+                } catch (e) {
+                  console.warn('Failed to parse SSE data:', data)
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock()
         }
 
         setState((prev) => ({

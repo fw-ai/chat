@@ -409,6 +409,12 @@ export class ApiClient {
               // Handle structured backend response format
               if (parsed.type === 'content' && parsed.content) {
                 yield parsed.content
+              } else if (parsed.type === 'tool_calls' && parsed.tool_calls) {
+                // Yield a special marker for tool calls that the frontend can handle
+                yield `\n__TOOL_CALLS__:${JSON.stringify(parsed.tool_calls)}\n`
+              } else if (parsed.type === 'finish_reason' && parsed.finish_reason) {
+                // Yield a special marker for finish reason
+                yield `\n__FINISH_REASON__:${parsed.finish_reason}\n`
               } else if (parsed.type === 'done') {
                 return
               } else if (parsed.type === 'error') {
