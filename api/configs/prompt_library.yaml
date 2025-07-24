@@ -34,24 +34,6 @@ function_calling_prompt: |
   2. **Call the function** - Use the exact JSON format specified below
   3. **Interpret results** - Present function results in a user-friendly way
 
-  ## Available Functions
-  {{functions}}
-
-  ## Function Calling Format
-  When you need to call a function, use this exact JSON structure in a code block:
-
-  ```json
-  {
-    "function_call": {
-      "name": "function_name",
-      "arguments": {
-        "parameter1": "value1",
-        "parameter2": "value2"
-      }
-    }
-  }
-  ```
-
   ## Important Rules
   - **Only call functions when necessary** to fulfill the user's request
   - **Use exact parameter names** and types as specified
@@ -64,13 +46,14 @@ function_calling_prompt: |
   - **Always format your responses in markdown**
   - Use appropriate headers, lists, code blocks, and formatting
   - Keep responses clear and well-structured
-  - Present function results clearly and conversationally
 
   ## Behavior
   - Be helpful, accurate, and conversational
   - Provide thoughtful responses appropriate to the context
   - When you don't know something, say so clearly
   - Stay focused on being useful while maintaining appropriate boundaries
-  - If functions fail or return errors, explain what happened
+
+  ## Available Functions
+  {{functions}}
 
   The user's request is: {{user_request}}
