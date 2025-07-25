@@ -137,9 +137,9 @@ class ComparisonService:
         """Get the latest user message from comparison session."""
         try:
             session = self.session_manager.get_session(comparison_id)
-            if session and hasattr(session, "messages"):
-                user_messages = [msg for msg in session.messages if msg.role == "user"]
-                return user_messages[-1].content if user_messages else "Hello, world!"
+            if session and session.conversation_history:
+                user_messages = [msg for msg in session.conversation_history if msg.get("role") == "user"]
+                return user_messages[-1]["content"] if user_messages else "Hello, world!"
             else:
                 return "Hello, world!"
         except Exception:
