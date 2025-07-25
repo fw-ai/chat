@@ -67,7 +67,6 @@ async def test_api_key_with_fireworks(api_key: str) -> bool:
         bool: True if API key is valid, False otherwise
     """
     try:
-        print(f"Testing API key: {api_key}")
         async with aiohttp.ClientSession() as session:
             headers = {
                 "Authorization": f"Bearer {api_key}",
