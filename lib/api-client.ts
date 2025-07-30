@@ -224,7 +224,7 @@ export class ApiClient {
     return await response.json()
   }
 
-  async sendSingleChat(request: ChatRequest, comparison_id?: string): Promise<ReadableStream<Uint8Array>> {
+  async sendSingleChat(request: ChatRequest, comparison_id?: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
     // Transform request format for backend
     const backendRequest: BackendChatRequest = {
       messages: request.messages,
@@ -238,6 +238,7 @@ export class ApiClient {
       method: "POST",
       headers: this.getHeaders(request.apiKey),
       body: JSON.stringify(backendRequest),
+      signal,
     })
 
     if (!response.ok) {
