@@ -86,7 +86,7 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   <div className="font-medium mb-1">Arguments:</div>
-                  <pre className="bg-muted/30 p-2 rounded text-xs overflow-x-auto">
+                  <pre className="bg-muted/30 p-2 rounded text-xs overflow-auto max-h-48 whitespace-pre-wrap break-words">
                     {JSON.stringify(toolCall.arguments || toolCall.function?.arguments, null, 2)}
                   </pre>
                 </div>
