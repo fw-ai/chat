@@ -427,7 +427,6 @@ export function AppSidebar({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2">2 requests</SelectItem>
                         <SelectItem value="5">5 requests</SelectItem>
                         <SelectItem value="10">10 requests</SelectItem>
                         <SelectItem value="20">20 requests</SelectItem>
