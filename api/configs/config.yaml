@@ -5,10 +5,22 @@ models:
     display_name: "Kimi K2"
     function_calling: true
 
+  qwen3_coder:
+    id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"
+    name: "Qwen3 Coder 480B"
+    display_name: "Qwen3 Coder 480B"
+    function_calling: true
+
   qwen3_235b_2507:
     id: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
     name: "Qwen3 235B 2507"
     display_name: "Qwen3 235B 2507"
+    function_calling: true
+
+  qwen3_235b_2507_thinking:
+    id: "accounts/fireworks/models/qwen3-235b-a22b-thinking-2507"
+    name: "Qwen3 235B"
+    display_name: "Qwen3 235B (Thinking)"
     function_calling: true
 
   qwen3_235b:
