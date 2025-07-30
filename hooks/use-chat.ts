@@ -104,6 +104,18 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [state.sessionId, model, state.messages])
 
+  // Track active requests for cleanup
+  const activeRequestRef = useRef<AbortController | null>(null)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (activeRequestRef.current) {
+        activeRequestRef.current.abort()
+      }
+    }
+  }, [])
+
   const sendMessage = useCallback(
     async (content: string) => {
       // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
@@ -149,6 +161,10 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         messages: [...prev.messages, assistantMessage],
       }))
 
+      // Create abort controller for cleanup
+      const abortController = new AbortController()
+      activeRequestRef.current = abortController
+      
       try {
         // Send only the new user message - backend will manage conversation history
         const messages = [{
@@ -162,7 +178,7 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
           conversation_id: state.sessionId, // Use session ID for conversation continuity
           function_definitions: functionDefinitions,
           apiKey: apiKey!, // Safe to use ! since we checked hasValidApiKey above
-        })
+        }, undefined, abortController.signal)
 
         let fullContent = ""
         let toolCalls: any[] = []
@@ -171,6 +187,7 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         // We need to parse the SSE stream manually to handle different message types
         const reader = stream.getReader()
         const decoder = new TextDecoder()
+        let streamCompleted = false
 
         try {
           while (true) {
@@ -184,7 +201,10 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
               if (line.trim() === '') continue
               if (line.startsWith('data: ')) {
                 const data = line.slice(6)
-                if (data === '[DONE]') break
+                if (data === '[DONE]') {
+                  streamCompleted = true
+                  break
+                }
 
                 try {
                   const parsed = JSON.parse(data)
@@ -223,6 +243,7 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
                     }))
                   } else if (parsed.type === 'done') {
                     // Stream finished
+                    streamCompleted = true
                     break
                   } else if (parsed.type === 'error') {
                     throw new Error(parsed.error || 'Unknown error')
@@ -232,18 +253,23 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
                 }
               }
             }
+            
+            if (streamCompleted) break
           }
+
+          // Mark stream as completed BEFORE cleanup
+          setState((prev) => ({
+            ...prev,
+            messages: prev.messages.map((msg) =>
+              msg.id === assistantMessage.id ? { ...msg, isStreaming: false } : msg
+            ),
+            isLoading: false,
+          }))
         } finally {
           reader.releaseLock()
+          abortController.abort() // Ensure cleanup
+          activeRequestRef.current = null
         }
-
-        setState((prev) => ({
-          ...prev,
-          messages: prev.messages.map((msg) =>
-            msg.id === assistantMessage.id ? { ...msg, isStreaming: false } : msg
-          ),
-          isLoading: false,
-        }))
       } catch (error) {
         console.error("Failed to send message:", error)
         setState((prev) => ({

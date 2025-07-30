@@ -143,6 +143,18 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [state.sessionId, leftModel, rightModel, state.leftChat.messages, state.rightChat.messages])
 
+  // Track active requests for cleanup
+  const activeRequestsRef = useRef<{left?: AbortController, right?: AbortController}>({})
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(activeRequestsRef.current).forEach(controller => {
+        if (controller) controller.abort()
+      })
+    }
+  }, [])
+
   const sendMessage = useCallback(
     async (content: string) => {
       // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
@@ -231,6 +243,11 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         // Step 2: Start parallel model streams + optional metrics stream
         const streamPromises: Promise<void>[] = []
 
+        // Create abort controllers for cleanup
+        const leftAbortController = new AbortController()
+        const rightAbortController = new AbortController()
+        activeRequestsRef.current = { left: leftAbortController, right: rightAbortController }
+
         // Stream for left model
         const leftStreamPromise = (async () => {
           try {
@@ -240,7 +257,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
               apiKey: apiKey!,
-            }, comparisonId)
+            }, comparisonId, leftAbortController.signal)
 
             let leftContent = ""
             let leftToolCalls: any[] = []
@@ -249,6 +266,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
             // Parse SSE stream manually to handle different message types
             const reader = leftStream.getReader()
             const decoder = new TextDecoder()
+            let leftStreamCompleted = false
 
             try {
               while (true) {
@@ -262,7 +280,10 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                   if (line.trim() === '') continue
                   if (line.startsWith('data: ')) {
                     const data = line.slice(6)
-                    if (data === '[DONE]') break
+                    if (data === '[DONE]') {
+                      leftStreamCompleted = true
+                      break
+                    }
 
                     try {
                       const parsed = JSON.parse(data)
@@ -307,6 +328,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                         }))
                       } else if (parsed.type === 'done') {
                         // Stream finished
+                        leftStreamCompleted = true
                         break
                       } else if (parsed.type === 'error') {
                         throw new Error(parsed.error || 'Unknown error')
@@ -316,22 +338,26 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                     }
                   }
                 }
+                
+                if (leftStreamCompleted) break
               }
+
+              // Mark left model as done BEFORE cleanup
+              setState((prev) => ({
+                ...prev,
+                leftChat: {
+                  ...prev.leftChat,
+                  messages: prev.leftChat.messages.map((msg) =>
+                    msg.id === leftAssistantMessage.id ? { ...msg, isStreaming: false } : msg
+                  ),
+                  isLoading: false,
+                },
+              }))
             } finally {
               reader.releaseLock()
+              leftAbortController.abort() // Ensure cleanup
+              activeRequestsRef.current.left = undefined
             }
-
-            // Mark left model as done
-            setState((prev) => ({
-              ...prev,
-              leftChat: {
-                ...prev.leftChat,
-                messages: prev.leftChat.messages.map((msg) =>
-                  msg.id === leftAssistantMessage.id ? { ...msg, isStreaming: false } : msg
-                ),
-                isLoading: false,
-              },
-            }))
           } catch (error) {
             console.error("Left model stream error:", error)
             setState((prev) => ({
@@ -359,7 +385,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
               apiKey: apiKey!,
-            }, comparisonId)
+            }, comparisonId, rightAbortController.signal)
 
             let rightContent = ""
             let rightToolCalls: any[] = []
@@ -368,6 +394,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
             // Parse SSE stream manually to handle different message types
             const reader = rightStream.getReader()
             const decoder = new TextDecoder()
+            let rightStreamCompleted = false
 
             try {
               while (true) {
@@ -381,7 +408,10 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                   if (line.trim() === '') continue
                   if (line.startsWith('data: ')) {
                     const data = line.slice(6)
-                    if (data === '[DONE]') break
+                    if (data === '[DONE]') {
+                      rightStreamCompleted = true
+                      break
+                    }
 
                     try {
                       const parsed = JSON.parse(data)
@@ -426,6 +456,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                         }))
                       } else if (parsed.type === 'done') {
                         // Stream finished
+                        rightStreamCompleted = true
                         break
                       } else if (parsed.type === 'error') {
                         throw new Error(parsed.error || 'Unknown error')
@@ -435,22 +466,26 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                     }
                   }
                 }
+                
+                if (rightStreamCompleted) break
               }
+
+              // Mark right model as done BEFORE cleanup
+              setState((prev) => ({
+                ...prev,
+                rightChat: {
+                  ...prev.rightChat,
+                  messages: prev.rightChat.messages.map((msg) =>
+                    msg.id === rightAssistantMessage.id ? { ...msg, isStreaming: false } : msg
+                  ),
+                  isLoading: false,
+                },
+              }))
             } finally {
               reader.releaseLock()
+              rightAbortController.abort() // Ensure cleanup
+              activeRequestsRef.current.right = undefined
             }
-
-            // Mark right model as done
-            setState((prev) => ({
-              ...prev,
-              rightChat: {
-                ...prev.rightChat,
-                messages: prev.rightChat.messages.map((msg) =>
-                  msg.id === rightAssistantMessage.id ? { ...msg, isStreaming: false } : msg
-                ),
-                isLoading: false,
-              },
-            }))
           } catch (error) {
             console.error("Right model stream error:", error)
             setState((prev) => ({
@@ -521,6 +556,9 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
 
         // Wait for all streams to complete
         await Promise.allSettled(streamPromises)
+
+        // Final cleanup
+        activeRequestsRef.current = {}
 
       } catch (error) {
         console.error("Failed to send comparison message:", error)

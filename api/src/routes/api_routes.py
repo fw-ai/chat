@@ -284,8 +284,8 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
             )
 
         if request.comparison_id:
-            session_id = f"{request.comparison_id}_{request.model_key}"
-            session_type = "single"  # Each model stream is independent
+            session_id = request.comparison_id
+            session_type = "compare"
             primary_id = request.comparison_id
         else:
             session_id = request.conversation_id or generate_session_id()
@@ -297,11 +297,29 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
             f"API key: {get_api_key_safe_for_logging(client_api_key)}"
         )
 
-        session_manager.get_or_create_session(
-            session_id=session_id,
-            model_key=request.model_key,
-            session_type=session_type,
-        )
+        if request.comparison_id:
+            existing_session = session_manager.get_session(session_id)
+            if existing_session and existing_session.model_keys:
+
+                sorted_models = sorted(existing_session.model_keys)
+                model_key_concat = "_".join(sorted_models)
+
+                session_manager.get_or_create_session(
+                    session_id=session_id,
+                    model_key=model_key_concat,
+                    session_type=session_type,
+                )
+            else:
+                session_manager.get_or_create_session(
+                    session_id=session_id,
+                    session_type=session_type,
+                )
+        else:
+            session_manager.get_or_create_session(
+                session_id=session_id,
+                model_key=request.model_key,
+                session_type=session_type,
+            )
 
         if request.messages:
             latest_message = request.messages[-1]
@@ -412,7 +430,11 @@ async def init_comparison(request: ComparisonInitRequest):
                     status_code=400, detail=f"Invalid model key: {model_key}"
                 )
 
-        comparison_id = str(uuid.uuid4())
+        # Create deterministic comparison ID based on sorted model keys
+        # This ensures the same model combination reuses the same session
+        sorted_models = sorted(request.model_keys)
+        model_hash = "_".join(sorted_models)
+        comparison_id = f"comp_{hash(model_hash) % 1000000:06d}"
 
         # Use comparison service to create session
         messages_dict = [
