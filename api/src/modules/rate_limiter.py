@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, Union
 import ipaddress
 from datetime import datetime
 import os
@@ -18,7 +18,39 @@ class DualLayerRateLimiter:
             self.redis = redis.from_url(self.redis_url, decode_responses=True)
         return self.redis
 
-    def extract_ip_prefix(self, ip: str) -> str:
+    def _get_prefix_key(self, ip: str) -> Tuple[str, str]:
+        today = datetime.now().strftime("%Y-%m-%d")
+        ip_key = f"ip_usage:{today}:{ip}"
+        prefix = self.extract_ip_prefix(ip)
+        prefix_key = f"prefix_usage:{today}:{prefix}"
+
+        return ip_key, prefix_key
+
+    async def _get_usage_info(self, ip: str) -> Dict[str, Union[int, str, redis.Redis]]:
+        """
+        Get current usage without incrementing
+
+        Returns:
+            (ip_usage: int, prefix_usage: int, redis_client: redis.Redis)
+        """
+        redis_client = await self._get_redis()
+        ip_key, prefix_key = self._get_prefix_key(ip)
+
+        pipe = redis_client.pipeline()
+        pipe.get(ip_key)
+        pipe.get(prefix_key)
+        current_usage = await pipe.execute()
+
+        return {
+            "ip_key": ip_key,
+            "prefix_key": prefix_key,
+            "ip_usage": int(current_usage[0] or 0),
+            "prefix_usage": int(current_usage[1] or 0),
+            "redis_client": redis_client
+        }
+
+    @staticmethod
+    def extract_ip_prefix(ip: str) -> str:
         """Extract first two octets: 192.168.1.100 -> 192.168"""
         try:
             # Validate IP format (handles both IPv4 and IPv6)
@@ -43,21 +75,13 @@ class DualLayerRateLimiter:
             (allowed: bool, usage_info: dict)
         """
         try:
-            redis_client = await self._get_redis()
-            today = datetime.now().strftime("%Y-%m-%d")
-            ip_key = f"ip_usage:{today}:{ip}"
+            usage_info = await self._get_usage_info(ip)
 
-            prefix = self.extract_ip_prefix(ip)
-            prefix_key = f"prefix_usage:{today}:{prefix}"
-
-            # Get current usage atomically
-            pipe = redis_client.pipeline()
-            pipe.get(ip_key)
-            pipe.get(prefix_key)
-            current_usage = await pipe.execute()
-
-            ip_usage = int(current_usage[0] or 0)
-            prefix_usage = int(current_usage[1] or 0)
+            redis_client = usage_info["redis_client"]
+            ip_key = usage_info["ip_key"]
+            prefix_key = usage_info["prefix_key"]
+            ip_usage = usage_info["ip_usage"]
+            prefix_usage = usage_info["prefix_usage"]
 
             # Check limits
             if ip_usage >= self.IP_LIMIT:
@@ -108,19 +132,10 @@ class DualLayerRateLimiter:
     async def get_usage_info(self, ip: str) -> Dict[str, any]:
         """Get current usage without incrementing"""
         try:
-            redis_client = await self._get_redis()
-            today = datetime.now().strftime("%Y-%m-%d")
-            ip_key = f"ip_usage:{today}:{ip}"
-            prefix = self.extract_ip_prefix(ip)
-            prefix_key = f"prefix_usage:{today}:{prefix}"
+            usage_info = await self._get_usage_info(ip)
 
-            pipe = redis_client.pipeline()
-            pipe.get(ip_key)
-            pipe.get(prefix_key)
-            current_usage = await pipe.execute()
-
-            ip_usage = int(current_usage[0] or 0)
-            prefix_usage = int(current_usage[1] or 0)
+            ip_usage = usage_info["ip_usage"]
+            prefix_usage = usage_info["prefix_usage"]
 
             return {
                 "ip_usage": ip_usage,

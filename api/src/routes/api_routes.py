@@ -279,16 +279,13 @@ async def list_sessions():
 async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
-        # Check for API key first (optional)
         client_api_key = await get_optional_api_key(http_request)
         
         if not client_api_key:
-            # No API key - apply rate limiting
             client_ip = extract_client_ip(http_request)
             allowed, usage_info = await rate_limiter.check_and_increment_usage(client_ip)
             
             if not allowed:
-                # Determine error message based on limit type
                 if usage_info["limit_type"] == "individual_ip":
                     detail = f"Daily limit exceeded: {usage_info['ip_limit']} messages per IP address. Sign in with a Fireworks API key for unlimited access."
                 else:
