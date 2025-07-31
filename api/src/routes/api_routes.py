@@ -8,7 +8,12 @@ import uuid
 
 from src.modules.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
-from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging, get_optional_api_key, extract_client_ip
+from src.modules.auth import (
+    get_validated_api_key,
+    get_api_key_safe_for_logging,
+    get_optional_api_key,
+    extract_client_ip,
+)
 from src.modules.rate_limiter import DualLayerRateLimiter
 from src.services.comparison_service import ComparisonService, MetricsStreamer
 from src.logger import logger
@@ -280,11 +285,13 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
         client_api_key = await get_optional_api_key(http_request)
-        
+
         if not client_api_key:
             client_ip = extract_client_ip(http_request)
-            allowed, usage_info = await rate_limiter.check_and_increment_usage(client_ip)
-            
+            allowed, usage_info = await rate_limiter.check_and_increment_usage(
+                client_ip
+            )
+
             if not allowed:
                 if usage_info["limit_type"] == "individual_ip":
                     detail = f"Daily limit exceeded: {usage_info['ip_limit']} messages per IP address. Sign in with a Fireworks API key for unlimited access."
@@ -296,16 +303,24 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
                     detail=detail,
                     headers={
                         "X-RateLimit-Limit-IP": str(usage_info["ip_limit"]),
-                        "X-RateLimit-Remaining-IP": str(max(0, usage_info["ip_limit"] - usage_info["ip_usage"])),
+                        "X-RateLimit-Remaining-IP": str(
+                            max(0, usage_info["ip_limit"] - usage_info["ip_usage"])
+                        ),
                         "X-RateLimit-Limit-Prefix": str(usage_info["prefix_limit"]),
-                        "X-RateLimit-Remaining-Prefix": str(max(0, usage_info["prefix_limit"] - usage_info["prefix_usage"])),
-                    }
+                        "X-RateLimit-Remaining-Prefix": str(
+                            max(
+                                0,
+                                usage_info["prefix_limit"] - usage_info["prefix_usage"],
+                            )
+                        ),
+                    },
                 )
         else:
             # API key provided - validate it (existing behavior)
             from src.modules.auth import get_validated_api_key
+
             client_api_key = await get_validated_api_key(http_request)
-        
+
         # Rest of function remains exactly the same...
         if not validate_model_key(request.model_key):
             raise HTTPException(

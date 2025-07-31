@@ -131,9 +131,9 @@ async def get_validated_api_key(request: Request) -> str:
 async def get_optional_api_key(request: Request) -> Optional[str]:
     """
     Extract and validate API key if present, return None if missing/invalid.
-    
+
     This allows unauthenticated requests to proceed for rate limiting.
-    
+
     Returns:
         str: Valid API key if present and valid
         None: If no API key or invalid API key
@@ -153,29 +153,29 @@ async def get_optional_api_key(request: Request) -> Optional[str]:
 def extract_client_ip(request: Request) -> str:
     """
     Extract client IP with proper proxy support for Vercel/Cloudflare.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         str: Client IP address
     """
     headers_to_check = [
-        "cf-connecting-ip",     # Cloudflare
-        "x-vercel-forwarded-for", # Vercel
-        "x-forwarded-for",      # Standard proxy
-        "x-real-ip",           # Nginx
-        "x-client-ip",         # Alternative
+        "cf-connecting-ip",  # Cloudflare
+        "x-vercel-forwarded-for",  # Vercel
+        "x-forwarded-for",  # Standard proxy
+        "x-real-ip",  # Nginx
+        "x-client-ip",  # Alternative
     ]
-    
+
     for header in headers_to_check:
         value = request.headers.get(header)
         if value:
             # Handle comma-separated IPs (take first/leftmost = original client)
-            ip = value.split(',')[0].strip()
+            ip = value.split(",")[0].strip()
             if ip and ip != "unknown":
                 return ip
-    
+
     return request.client.host if request.client else "127.0.0.1"
 
 

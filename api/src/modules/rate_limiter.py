@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from src.logger import logger
 
+
 class DualLayerRateLimiter:
     def __init__(self, redis_url: str = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -46,7 +47,7 @@ class DualLayerRateLimiter:
             "prefix_key": prefix_key,
             "ip_usage": int(current_usage[0] or 0),
             "prefix_usage": int(current_usage[1] or 0),
-            "redis_client": redis_client
+            "redis_client": redis_client,
         }
 
     @staticmethod
@@ -56,13 +57,13 @@ class DualLayerRateLimiter:
             # Validate IP format (handles both IPv4 and IPv6)
             ip_obj = ipaddress.ip_address(ip)
             if ip_obj.version == 4:
-                octets = str(ip_obj).split('.')
+                octets = str(ip_obj).split(".")
                 return f"{octets[0]}.{octets[1]}"
             else:
                 # For IPv6, use exploded form to avoid compression issues
                 exploded = ip_obj.exploded  # Full expanded form
-                groups = exploded.split(':')[:4]
-                return ':'.join(groups)
+                groups = exploded.split(":")[:4]
+                return ":".join(groups)
         except ValueError:
             # Fallback for invalid IPs - just truncate
             return ip[:10]
@@ -70,7 +71,7 @@ class DualLayerRateLimiter:
     async def check_and_increment_usage(self, ip: str) -> Tuple[bool, Dict[str, any]]:
         """
         Check both IP and prefix limits, increment if allowed
-        
+
         Returns:
             (allowed: bool, usage_info: dict)
         """
@@ -90,7 +91,7 @@ class DualLayerRateLimiter:
                     "ip_limit": self.IP_LIMIT,
                     "prefix_usage": prefix_usage,
                     "prefix_limit": self.PREFIX_LIMIT,
-                    "limit_type": "individual_ip"
+                    "limit_type": "individual_ip",
                 }
 
             if prefix_usage >= self.PREFIX_LIMIT:
@@ -99,7 +100,7 @@ class DualLayerRateLimiter:
                     "ip_limit": self.IP_LIMIT,
                     "prefix_usage": prefix_usage,
                     "prefix_limit": self.PREFIX_LIMIT,
-                    "limit_type": "ip_prefix"
+                    "limit_type": "ip_prefix",
                 }
 
             # Both limits OK - increment atomically
@@ -115,7 +116,7 @@ class DualLayerRateLimiter:
                 "ip_limit": self.IP_LIMIT,
                 "prefix_usage": prefix_usage + 1,
                 "prefix_limit": self.PREFIX_LIMIT,
-                "limit_type": "allowed"
+                "limit_type": "allowed",
             }
 
         except Exception as e:
@@ -126,7 +127,7 @@ class DualLayerRateLimiter:
                 "ip_limit": self.IP_LIMIT,
                 "prefix_usage": 0,
                 "prefix_limit": self.PREFIX_LIMIT,
-                "limit_type": "error_failopen"
+                "limit_type": "error_failopen",
             }
 
     async def get_usage_info(self, ip: str) -> Dict[str, any]:
@@ -143,7 +144,7 @@ class DualLayerRateLimiter:
                 "prefix_usage": prefix_usage,
                 "prefix_limit": self.PREFIX_LIMIT,
                 "ip_remaining": max(0, self.IP_LIMIT - ip_usage),
-                "prefix_remaining": max(0, self.PREFIX_LIMIT - prefix_usage)
+                "prefix_remaining": max(0, self.PREFIX_LIMIT - prefix_usage),
             }
         except Exception as e:
             logger.error(f"Error getting usage info: {str(e)}")
@@ -153,5 +154,5 @@ class DualLayerRateLimiter:
                 "prefix_usage": 0,
                 "prefix_limit": self.PREFIX_LIMIT,
                 "ip_remaining": self.IP_LIMIT,
-                "prefix_remaining": self.PREFIX_LIMIT
-            } 
+                "prefix_remaining": self.PREFIX_LIMIT,
+            }
