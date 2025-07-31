@@ -1,6 +1,7 @@
 import re
 import aiohttp
 from fastapi import HTTPException, Request
+from typing import Optional
 from src.logger import logger
 
 
@@ -125,6 +126,57 @@ async def get_validated_api_key(request: Request) -> str:
     except Exception as e:
         logger.error(f"Unexpected error validating API key: {str(e)[:100]}...")
         raise HTTPException(status_code=500, detail="Failed to validate API key")
+
+
+async def get_optional_api_key(request: Request) -> Optional[str]:
+    """
+    Extract and validate API key if present, return None if missing/invalid.
+    
+    This allows unauthenticated requests to proceed for rate limiting.
+    
+    Returns:
+        str: Valid API key if present and valid
+        None: If no API key or invalid API key
+    """
+    try:
+        return await get_validated_api_key(request)
+    except HTTPException as e:
+        # Log for debugging but don't raise
+        if e.status_code != 401:
+            logger.warning(f"Unexpected auth error: {e.detail}")
+        return None
+    except Exception as e:
+        logger.warning(f"Unexpected error in optional auth: {str(e)[:100]}...")
+        return None
+
+
+def extract_client_ip(request: Request) -> str:
+    """
+    Extract client IP with proper proxy support for Vercel/Cloudflare.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        str: Client IP address
+    """
+    headers_to_check = [
+        "cf-connecting-ip",     # Cloudflare
+        "x-vercel-forwarded-for", # Vercel
+        "x-forwarded-for",      # Standard proxy
+        "x-real-ip",           # Nginx
+        "x-client-ip",         # Alternative
+    ]
+    
+    for header in headers_to_check:
+        value = request.headers.get(header)
+        if value:
+            # Handle comma-separated IPs (take first/leftmost = original client)
+            ip = value.split(',')[0].strip()
+            if ip and ip != "unknown":
+                return ip
+    
+    return request.client.host if request.client else "127.0.0.1"
 
 
 def get_api_key_safe_for_logging(api_key: str) -> str:

@@ -8,7 +8,8 @@ import uuid
 
 from src.modules.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
-from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging
+from src.modules.auth import get_validated_api_key, get_api_key_safe_for_logging, get_optional_api_key, extract_client_ip
+from src.modules.rate_limiter import DualLayerRateLimiter
 from src.services.comparison_service import ComparisonService, MetricsStreamer
 from src.logger import logger
 from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
@@ -31,6 +32,7 @@ app.add_middleware(
 config = FireworksConfig()
 session_manager = SessionManager(config.config)
 comparison_service = ComparisonService(session_manager)
+rate_limiter = DualLayerRateLimiter()
 _MODELS = config.get_all_models()
 
 
@@ -277,7 +279,37 @@ async def list_sessions():
 async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
-        client_api_key = await get_validated_api_key(http_request)
+        # Check for API key first (optional)
+        client_api_key = await get_optional_api_key(http_request)
+        
+        if not client_api_key:
+            # No API key - apply rate limiting
+            client_ip = extract_client_ip(http_request)
+            allowed, usage_info = await rate_limiter.check_and_increment_usage(client_ip)
+            
+            if not allowed:
+                # Determine error message based on limit type
+                if usage_info["limit_type"] == "individual_ip":
+                    detail = f"Daily limit exceeded: {usage_info['ip_limit']} messages per IP address. Sign in with a Fireworks API key for unlimited access."
+                else:
+                    detail = f"Network limit exceeded: {usage_info['prefix_limit']} messages per network. This may be due to shared VPN/corporate network usage. Sign in with a Fireworks API key for unlimited access."
+
+                raise HTTPException(
+                    status_code=429,
+                    detail=detail,
+                    headers={
+                        "X-RateLimit-Limit-IP": str(usage_info["ip_limit"]),
+                        "X-RateLimit-Remaining-IP": str(max(0, usage_info["ip_limit"] - usage_info["ip_usage"])),
+                        "X-RateLimit-Limit-Prefix": str(usage_info["prefix_limit"]),
+                        "X-RateLimit-Remaining-Prefix": str(max(0, usage_info["prefix_limit"] - usage_info["prefix_usage"])),
+                    }
+                )
+        else:
+            # API key provided - validate it (existing behavior)
+            from src.modules.auth import get_validated_api_key
+            client_api_key = await get_validated_api_key(http_request)
+        
+        # Rest of function remains exactly the same...
         if not validate_model_key(request.model_key):
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
