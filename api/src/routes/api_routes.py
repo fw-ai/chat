@@ -228,11 +228,9 @@ async def get_available_models(function_calling: Optional[bool] = None):
                 elif not function_calling:
                     filtered_models[key] = model
             models = filtered_models
-            logger.info(
-                f"Function calling on: filtered models: {filtered_models.keys()}"
-            )
+            logger.info("Function calling ON ...")
         else:
-            logger.info(f"Function calling off: all models: {_MODELS.keys()}")
+            logger.info("Function calling OFF ...")
 
         return {"models": models}
     except Exception as e:

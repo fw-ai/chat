@@ -176,7 +176,9 @@ def extract_client_ip(request: Request) -> str:
             if ip and ip != "unknown":
                 return ip
 
-    return request.client.host if request.client else "127.0.0.1"
+    ip_address = request.client.host
+    logger.info(f"Client IP: {ip_address}")
+    return ip_address
 
 
 def get_api_key_safe_for_logging(api_key: str) -> str:
