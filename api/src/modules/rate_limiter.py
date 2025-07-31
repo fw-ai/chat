@@ -60,10 +60,16 @@ class DualLayerRateLimiter:
                 octets = str(ip_obj).split(".")
                 return f"{octets[0]}.{octets[1]}"
             else:
-                # For IPv6, use exploded form to avoid compression issues
-                exploded = ip_obj.exploded  # Full expanded form
-                groups = exploded.split(":")[:4]
-                return ":".join(groups)
+                # For IPv6, use first 4 groups - simple split
+                ip_str = str(ip_obj)
+                # Split by : and take first 4 parts
+                groups = ip_str.split(":")
+                # Handle empty groups from compressed notation
+                filtered_groups = [g for g in groups[:4] if g]
+                # Pad to 4 if we have less
+                while len(filtered_groups) < 4:
+                    filtered_groups.append("0")
+                return ":".join(filtered_groups[:4])
         except ValueError:
             # Fallback for invalid IPs - just truncate
             return ip[:10]

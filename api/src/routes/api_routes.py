@@ -206,6 +206,62 @@ async def _stream_response_with_session(
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
 
+async def check_rate_limit_and_auth(http_request: Request) -> str:
+    """
+    Helper function to check rate limiting and authentication for API endpoints.
+
+    This function:
+    1. Checks for optional API key
+    2. If no API key, applies rate limiting
+    3. If rate limit exceeded, raises HTTPException with appropriate headers
+    4. If API key present, validates it
+    5. Returns the validated API key
+
+    Args:
+        http_request: FastAPI request object
+
+    Returns:
+        str: Validated API key
+
+    Raises:
+        HTTPException: If rate limited (429) or authentication fails (401)
+    """
+    # Check for API key first (optional)
+    client_api_key = await get_optional_api_key(http_request)
+
+    if not client_api_key:
+        # No API key - apply rate limiting
+        client_ip = extract_client_ip(http_request)
+        allowed, usage_info = await rate_limiter.check_and_increment_usage(client_ip)
+
+        if not allowed:
+            # Determine error message based on limit type
+            if usage_info["limit_type"] == "individual_ip":
+                detail = f"Daily limit exceeded: {usage_info['ip_limit']} messages per IP address. Sign in with a Fireworks API key for unlimited access."
+            else:
+                detail = f"Network limit exceeded: {usage_info['prefix_limit']} messages per network. This may be due to shared VPN/corporate network usage. Sign in with a Fireworks API key for unlimited access."
+
+            raise HTTPException(
+                status_code=429,
+                detail=detail,
+                headers={
+                    "X-RateLimit-Limit-IP": str(usage_info["ip_limit"]),
+                    "X-RateLimit-Remaining-IP": str(
+                        max(0, usage_info["ip_limit"] - usage_info["ip_usage"])
+                    ),
+                    "X-RateLimit-Limit-Prefix": str(usage_info["prefix_limit"]),
+                    "X-RateLimit-Remaining-Prefix": str(
+                        max(0, usage_info["prefix_limit"] - usage_info["prefix_usage"])
+                    ),
+                },
+            )
+    else:
+        # API key provided - validate it (existing behavior)
+        client_api_key = await get_validated_api_key(http_request)
+
+    return client_api_key
+
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -282,42 +338,7 @@ async def list_sessions():
 async def single_chat(request: SingleChatRequest, http_request: Request):
     """Single model streaming - works for both solo and comparison chats"""
     try:
-        client_api_key = await get_optional_api_key(http_request)
-
-        if not client_api_key:
-            client_ip = extract_client_ip(http_request)
-            allowed, usage_info = await rate_limiter.check_and_increment_usage(
-                client_ip
-            )
-
-            if not allowed:
-                if usage_info["limit_type"] == "individual_ip":
-                    detail = f"Daily limit exceeded: {usage_info['ip_limit']} messages per IP address. Sign in with a Fireworks API key for unlimited access."
-                else:
-                    detail = f"Network limit exceeded: {usage_info['prefix_limit']} messages per network. This may be due to shared VPN/corporate network usage. Sign in with a Fireworks API key for unlimited access."
-
-                raise HTTPException(
-                    status_code=429,
-                    detail=detail,
-                    headers={
-                        "X-RateLimit-Limit-IP": str(usage_info["ip_limit"]),
-                        "X-RateLimit-Remaining-IP": str(
-                            max(0, usage_info["ip_limit"] - usage_info["ip_usage"])
-                        ),
-                        "X-RateLimit-Limit-Prefix": str(usage_info["prefix_limit"]),
-                        "X-RateLimit-Remaining-Prefix": str(
-                            max(
-                                0,
-                                usage_info["prefix_limit"] - usage_info["prefix_usage"],
-                            )
-                        ),
-                    },
-                )
-        else:
-            # API key provided - validate it (existing behavior)
-            from src.modules.auth import get_validated_api_key
-
-            client_api_key = await get_validated_api_key(http_request)
+        client_api_key = await check_rate_limit_and_auth(http_request)
 
         # Rest of function remains exactly the same...
         if not validate_model_key(request.model_key):
@@ -400,28 +421,30 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
 
 @app.post("/chat/metrics")
 async def stream_metrics(request: MetricsRequest, http_request: Request):
-    """Stream live metrics immediately - completely independent of model responses"""
+    """Stream live metrics immediately - completely independent of model responses
+
+    This endpoint requires API key authentication as it performs concurrent benchmarks
+    which are computationally expensive.
+    """
     try:
         client_api_key = await get_validated_api_key(http_request)
 
-        # Validate all model keys
         for model_key in request.model_keys:
             if not validate_model_key(model_key):
                 raise HTTPException(
                     status_code=400, detail=f"Invalid model key: {model_key}"
                 )
 
-        # Determine prompt for metrics
         prompt = request.prompt
         if not prompt and request.comparison_id:
-            # Get prompt from comparison session via service
             prompt = comparison_service.get_comparison_prompt(request.comparison_id)
         elif not prompt:
             prompt = "Hello, world!"
 
         logger.info(
             f"Starting metrics stream for models: {request.model_keys}, "
-            f"concurrency: {request.concurrency}"
+            f"concurrency: {request.concurrency}, "
+            f"API key: {get_api_key_safe_for_logging(client_api_key)}"
         )
 
         # Create metrics streamer and start immediately
@@ -462,9 +485,12 @@ async def stream_metrics(request: MetricsRequest, http_request: Request):
 
 
 @app.post("/chat/compare/init")
-async def init_comparison(request: ComparisonInitRequest):
+async def init_comparison(request: ComparisonInitRequest, http_request: Request):
     """Initialize a comparison session - lightweight coordination only"""
     try:
+        # Apply rate limiting and authentication
+        await check_rate_limit_and_auth(http_request)
+
         # Validate all model keys
         for model_key in request.model_keys:
             if not validate_model_key(model_key):
@@ -472,8 +498,6 @@ async def init_comparison(request: ComparisonInitRequest):
                     status_code=400, detail=f"Invalid model key: {model_key}"
                 )
 
-        # Create deterministic comparison ID based on sorted model keys
-        # This ensures the same model combination reuses the same session
         sorted_models = sorted(request.model_keys)
         model_hash = "_".join(sorted_models)
         comparison_id = f"comp_{hash(model_hash) % 1000000:06d}"
