@@ -247,8 +247,16 @@ async def root():
 async def get_available_models(function_calling: Optional[bool] = None):
     """Get all available models, optionally filtered by function calling capability"""
     try:
+        if not _MODELS:
+            logger.error("_MODELS is empty or None")
+            raise HTTPException(
+                status_code=500, detail="Models configuration not loaded"
+            )
+
         models = _MODELS
-        if function_calling:
+        logger.info(f"Total models available: {len(models)}")
+
+        if function_calling is not None:
             filtered_models = {}
             for key, model in models.items():
                 model_supports_fc = model.get("function_calling", False)
@@ -256,17 +264,21 @@ async def get_available_models(function_calling: Optional[bool] = None):
                     filtered_models[key] = model
                 elif not function_calling and not model_supports_fc:
                     filtered_models[key] = model
-                elif not function_calling:
-                    filtered_models[key] = model
             models = filtered_models
-            logger.info("Function calling ON ...")
+            logger.info(
+                f"Function calling filter applied ({function_calling}), filtered to {len(models)} models"
+            )
         else:
-            logger.info("Function calling OFF ...")
+            logger.info("No function calling filter applied")
 
         return {"models": models}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting models: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to get available models")
+        logger.error(f"Error getting models: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get available models: {str(e)}"
+        )
 
 
 @app.get("/models/{model_key}")
