@@ -138,8 +138,14 @@ class ComparisonService:
         try:
             session = self.session_manager.get_session(comparison_id)
             if session and session.conversation_history:
-                user_messages = [msg for msg in session.conversation_history if msg.get("role") == "user"]
-                return user_messages[-1]["content"] if user_messages else "Hello, world!"
+                user_messages = [
+                    msg
+                    for msg in session.conversation_history
+                    if msg.get("role") == "user"
+                ]
+                return (
+                    user_messages[-1]["content"] if user_messages else "Hello, world!"
+                )
             else:
                 return "Hello, world!"
         except Exception:
