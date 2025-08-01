@@ -27,14 +27,15 @@ class DualLayerRateLimiter:
 
         return ip_key, prefix_key
 
-    async def _get_usage_info(self, ip: str) -> Dict[str, Union[int, str, redis.Redis]]:
+    async def _get_usage_info(
+        self, redis_client: redis.Redis, ip: str
+    ) -> Dict[str, Union[int, str, redis.Redis]]:
         """
         Get current usage without incrementing
 
         Returns:
             (ip_usage: int, prefix_usage: int, redis_client: redis.Redis)
         """
-        redis_client = await self._get_redis()
         ip_key, prefix_key = self._get_prefix_key(ip)
 
         pipe = redis_client.pipeline()
@@ -47,7 +48,6 @@ class DualLayerRateLimiter:
             "prefix_key": prefix_key,
             "ip_usage": int(current_usage[0] or 0),
             "prefix_usage": int(current_usage[1] or 0),
-            "redis_client": redis_client,
         }
 
     @staticmethod
@@ -82,7 +82,8 @@ class DualLayerRateLimiter:
             (allowed: bool, usage_info: dict)
         """
         try:
-            usage_info = await self._get_usage_info(ip)
+            redis_client = await self._get_redis()
+            usage_info = await self._get_usage_info(ip=ip, redis_client=redis_client)
 
             redis_client = usage_info["redis_client"]
             ip_key = usage_info["ip_key"]
@@ -97,7 +98,7 @@ class DualLayerRateLimiter:
                     "ip_limit": self.IP_LIMIT,
                     "prefix_usage": prefix_usage,
                     "prefix_limit": self.PREFIX_LIMIT,
-                    "limit_type": "individual_ip",
+                    "limit_reason": "individual_ip",
                 }
 
             if prefix_usage >= self.PREFIX_LIMIT:
@@ -106,10 +107,9 @@ class DualLayerRateLimiter:
                     "ip_limit": self.IP_LIMIT,
                     "prefix_usage": prefix_usage,
                     "prefix_limit": self.PREFIX_LIMIT,
-                    "limit_type": "ip_prefix",
+                    "limit_reason": "ip_prefix",
                 }
 
-            # Both limits OK - increment atomically
             pipe = redis_client.pipeline()
             pipe.incr(ip_key)
             pipe.expire(ip_key, 86400)  # 24 hours TTL
@@ -122,7 +122,7 @@ class DualLayerRateLimiter:
                 "ip_limit": self.IP_LIMIT,
                 "prefix_usage": prefix_usage + 1,
                 "prefix_limit": self.PREFIX_LIMIT,
-                "limit_type": "allowed",
+                "limit_reason": "",
             }
 
         except Exception as e:
@@ -133,13 +133,14 @@ class DualLayerRateLimiter:
                 "ip_limit": self.IP_LIMIT,
                 "prefix_usage": 0,
                 "prefix_limit": self.PREFIX_LIMIT,
-                "limit_type": "error_failopen",
+                "limit_reason": "error_failopen",
             }
 
     async def get_usage_info(self, ip: str) -> Dict[str, any]:
         """Get current usage without incrementing"""
         try:
-            usage_info = await self._get_usage_info(ip)
+            redis_client = await self._get_redis()
+            usage_info = await self._get_usage_info(ip=ip, redis_client=redis_client)
 
             ip_usage = usage_info["ip_usage"]
             prefix_usage = usage_info["prefix_usage"]
