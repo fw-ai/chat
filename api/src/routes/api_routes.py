@@ -1,5 +1,5 @@
-from typing import Dict, List, Optional, Any
-from fastapi import FastAPI, HTTPException, Request
+from typing import Dict, List, Optional, Any, Annotated
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -15,6 +15,13 @@ from src.modules.auth import (
 )
 from src.modules.rate_limiter import DualLayerRateLimiter, verify_rate_limit
 from src.services.comparison_service import ComparisonService, MetricsStreamer
+from src.services.dependencies import (
+    get_config,
+    get_session_manager,
+    get_comparison_service,
+    get_rate_limiter,
+    get_models,
+)
 from src.logger import logger
 from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
 from src.modules.llm_completion import DEFAULT_TEMPERATURE
@@ -33,11 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-config = FireworksConfig()
-session_manager = SessionManager(config.config)
-comparison_service = ComparisonService(session_manager)
-rate_limiter = DualLayerRateLimiter()
-_MODELS = config.get_all_models()
+# Services are now managed through dependency injection
 
 
 class ChatMessage(BaseModel):
@@ -119,7 +122,7 @@ class ComparisonInitRequest(BaseModel):
     )
 
 
-def validate_model_key(model_key: str) -> bool:
+def validate_model_key(model_key: str, config: FireworksConfig) -> bool:
     """Validate that model key exists in config"""
     try:
         config.get_model(model_key)
@@ -140,6 +143,7 @@ async def _stream_response_with_session(
     temperature: Optional[float],
     error_context: str,
     client_api_key: str,
+    session_manager: SessionManager,
     function_definitions: Optional[List[Dict[str, Any]]] = None,
 ):
     """Helper to stream chat responses and save assistant responses to session."""
@@ -205,7 +209,10 @@ async def _stream_response_with_session(
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
 
-async def check_rate_limit_and_auth(http_request: Request) -> str:
+async def check_rate_limit_and_auth(
+    http_request: Request,
+    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+) -> str:
     """
     Helper function to check rate limiting and authentication for API endpoints.
 
@@ -218,6 +225,7 @@ async def check_rate_limit_and_auth(http_request: Request) -> str:
 
     Args:
         http_request: FastAPI request object
+        rate_limiter: Injected rate limiter dependency
 
     Returns:
         str: Validated API key
@@ -244,29 +252,33 @@ async def root():
 
 
 @app.get("/models")
-async def get_available_models(function_calling: Optional[bool] = None):
+async def get_available_models(
+    function_calling: Optional[bool] = None,
+    models: Annotated[Dict[str, Any], Depends(get_models)] = None,
+):
     """Get all available models, optionally filtered by function calling capability"""
     try:
-        if not _MODELS:
-            logger.error("_MODELS is empty or None")
-            raise HTTPException(
-                status_code=500, detail="Models configuration not loaded"
-            )
+        if not models:
+            logger.error("Models dictionary is empty after initialization")
+            raise HTTPException(status_code=500, detail="No models available")
 
-        models = _MODELS
         logger.info(f"Total models available: {len(models)}")
 
-        if function_calling is not None:
+        if function_calling is True:
+            # Only show models that support function calling
             filtered_models = {}
             for key, model in models.items():
                 model_supports_fc = model.get("function_calling", False)
-                if function_calling and model_supports_fc:
-                    filtered_models[key] = model
-                elif not function_calling and not model_supports_fc:
+                if model_supports_fc:
                     filtered_models[key] = model
             models = filtered_models
             logger.info(
-                f"Function calling filter applied ({function_calling}), filtered to {len(models)} models"
+                f"Function calling filter applied (true), filtered to {len(models)} models with function calling support"
+            )
+        elif function_calling is False:
+            # Show all models when function_calling=false
+            logger.info(
+                f"Function calling filter set to false - showing all {len(models)} models"
             )
         else:
             logger.info("No function calling filter applied")
@@ -282,10 +294,13 @@ async def get_available_models(function_calling: Optional[bool] = None):
 
 
 @app.get("/models/{model_key}")
-async def get_model_info(model_key: str):
+async def get_model_info(
+    model_key: str,
+    config: Annotated[FireworksConfig, Depends(get_config)],
+):
     """Get detailed information about a specific model"""
     try:
-        if not validate_model_key(model_key):
+        if not validate_model_key(model_key, config):
             raise HTTPException(
                 status_code=404, detail=f"Model '{model_key}' not found"
             )
@@ -300,7 +315,9 @@ async def get_model_info(model_key: str):
 
 
 @app.get("/sessions/stats")
-async def get_session_stats():
+async def get_session_stats(
+    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
+):
     """Get session management statistics"""
     try:
         stats = session_manager.get_session_stats()
@@ -311,7 +328,9 @@ async def get_session_stats():
 
 
 @app.get("/sessions")
-async def list_sessions():
+async def list_sessions(
+    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
+):
     """List all active sessions"""
     try:
         sessions = session_manager.list_sessions()
@@ -322,13 +341,19 @@ async def list_sessions():
 
 
 @app.post("/chat/single")
-async def single_chat(request: SingleChatRequest, http_request: Request):
+async def single_chat(
+    request: SingleChatRequest,
+    http_request: Request,
+    config: Annotated[FireworksConfig, Depends(get_config)],
+    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
+    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+):
     """Single model streaming - works for both solo and comparison chats"""
     try:
-        client_api_key = await check_rate_limit_and_auth(http_request)
+        client_api_key = await check_rate_limit_and_auth(http_request, rate_limiter)
 
         # Rest of function remains exactly the same...
-        if not validate_model_key(request.model_key):
+        if not validate_model_key(request.model_key, config):
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
             )
@@ -386,6 +411,7 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
                 temperature=request.temperature,
                 error_context=f"{session_type} chat",
                 client_api_key=client_api_key,
+                session_manager=session_manager,
                 function_definitions=request.function_definitions,
             ),
             media_type="text/event-stream",
@@ -407,7 +433,12 @@ async def single_chat(request: SingleChatRequest, http_request: Request):
 
 
 @app.post("/chat/metrics")
-async def stream_metrics(request: MetricsRequest, http_request: Request):
+async def stream_metrics(
+    request: MetricsRequest,
+    http_request: Request,
+    config: Annotated[FireworksConfig, Depends(get_config)],
+    comparison_service: Annotated[ComparisonService, Depends(get_comparison_service)],
+):
     """Stream live metrics immediately - completely independent of model responses
 
     This endpoint requires API key authentication as it performs concurrent benchmarks
@@ -417,7 +448,7 @@ async def stream_metrics(request: MetricsRequest, http_request: Request):
         client_api_key = await get_validated_api_key(http_request)
 
         for model_key in request.model_keys:
-            if not validate_model_key(model_key):
+            if not validate_model_key(model_key, config):
                 raise HTTPException(
                     status_code=400, detail=f"Invalid model key: {model_key}"
                 )
@@ -472,15 +503,21 @@ async def stream_metrics(request: MetricsRequest, http_request: Request):
 
 
 @app.post("/chat/compare/init")
-async def init_comparison(request: ComparisonInitRequest, http_request: Request):
+async def init_comparison(
+    request: ComparisonInitRequest,
+    http_request: Request,
+    config: Annotated[FireworksConfig, Depends(get_config)],
+    comparison_service: Annotated[ComparisonService, Depends(get_comparison_service)],
+    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+):
     """Initialize a comparison session - lightweight coordination only"""
     try:
         # Apply rate limiting and authentication
-        await check_rate_limit_and_auth(http_request)
+        await check_rate_limit_and_auth(http_request, rate_limiter)
 
         # Validate all model keys
         for model_key in request.model_keys:
-            if not validate_model_key(model_key):
+            if not validate_model_key(model_key, config):
                 raise HTTPException(
                     status_code=400, detail=f"Invalid model key: {model_key}"
                 )
