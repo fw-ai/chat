@@ -89,8 +89,8 @@ class TestDualLayerRateLimiter:
             assert info.prefix_limit == 50
 
     @pytest.mark.asyncio
-    async def test_redis_failure_fail_open(self):
-        """Test that Redis failures result in fail-open behavior"""
+    async def test_redis_failure_fail_closed(self):
+        """Test that Redis failures result in fail-closed behavior"""
         with patch("redis.asyncio.from_url") as mock_redis:
             mock_client = AsyncMock()
             mock_redis.return_value = mock_client
@@ -103,8 +103,8 @@ class TestDualLayerRateLimiter:
             limiter = DualLayerRateLimiter()
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
-            assert allowed  # Should fail open
-            assert info.limit_reason == "error_failopen"
+            assert not allowed  # Should fail closed
+            assert info.limit_reason == "error_failclosed"
 
     @pytest.mark.asyncio
     async def test_usage_info_without_increment(self):

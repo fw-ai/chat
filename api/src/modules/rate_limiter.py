@@ -145,14 +145,14 @@ class DualLayerRateLimiter:
             )
 
         except Exception as e:
-            logger.error(f"Rate limiter error: {str(e)}")
-            # Fail open - allow request if Redis is down
-            return True, RateLimitInfo(
+            logger.critical(f"RATE_LIMITER_FAILURE: {str(e)}. Failing closed.")
+            # Fail closed - deny request if Redis is down
+            return False, RateLimitInfo(
                 ip_usage=0,
                 ip_limit=self.IP_LIMIT,
                 prefix_usage=0,
                 prefix_limit=self.PREFIX_LIMIT,
-                limit_reason="error_failopen",
+                limit_reason="error_failclosed",
             )
 
     async def get_usage_info(self, ip: str) -> RateLimitInfo:
