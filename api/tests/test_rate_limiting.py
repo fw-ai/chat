@@ -62,9 +62,9 @@ class TestDualLayerRateLimiter:
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
             assert not allowed
-            assert info["limit_type"] == "individual_ip"
-            assert info["ip_usage"] == 5
-            assert info["ip_limit"] == 5
+            assert info.limit_reason == "individual_ip"
+            assert info.ip_usage == 5
+            assert info.ip_limit == 5
 
     @pytest.mark.asyncio
     async def test_prefix_limit_exceeded(self):
@@ -84,9 +84,9 @@ class TestDualLayerRateLimiter:
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
             assert not allowed
-            assert info["limit_type"] == "ip_prefix"
-            assert info["prefix_usage"] == 50
-            assert info["prefix_limit"] == 50
+            assert info.limit_reason == "ip_prefix"
+            assert info.prefix_usage == 50
+            assert info.prefix_limit == 50
 
     @pytest.mark.asyncio
     async def test_redis_failure_fail_open(self):
@@ -104,7 +104,7 @@ class TestDualLayerRateLimiter:
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
             assert allowed  # Should fail open
-            assert info["limit_type"] == "error_failopen"
+            assert info.limit_reason == "error_failopen"
 
     @pytest.mark.asyncio
     async def test_usage_info_without_increment(self):
@@ -123,10 +123,10 @@ class TestDualLayerRateLimiter:
 
             info = await limiter.get_usage_info("192.168.1.100")
 
-            assert info["ip_usage"] == 3
-            assert info["prefix_usage"] == 25
-            assert info["ip_remaining"] == 2  # 5 - 3
-            assert info["prefix_remaining"] == 25  # 50 - 25
+            assert info.ip_usage == 3
+            assert info.prefix_usage == 25
+            assert info.ip_remaining == 2  # 5 - 3
+            assert info.prefix_remaining == 25  # 50 - 25
 
 
 class TestAuthHelpers:
@@ -181,7 +181,7 @@ class TestAuthHelpers:
         assert ip == "127.0.0.1"
 
 
-# Integration tests would go here
+# TODO: Add integration tests for rate limiting
 class TestRateLimitingIntegration:
     """Integration tests for rate limiting with FastAPI endpoints"""
 
