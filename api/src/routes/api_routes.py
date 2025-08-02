@@ -142,7 +142,7 @@ async def _stream_response_with_session(
     session_id: str,
     temperature: Optional[float],
     error_context: str,
-    client_api_key: str,
+    client_api_key: Optional[str],
     session_manager: SessionManager,
     function_definitions: Optional[List[Dict[str, Any]]] = None,
 ):

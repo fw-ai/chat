@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChatInterface } from "@/components/chat-interface"
 import { ComparisonInterface } from "@/components/comparison-interface"
@@ -19,6 +19,22 @@ export default function App() {
   const [functionDefinitions, setFunctionDefinitions] = useState<FunctionDefinition[]>([])
   const [apiKey, setApiKey] = useState("")
   const [clearChatFn, setClearChatFn] = useState<(() => void) | null>(null)
+
+  // Auto-disable speed test when API key is removed
+  useEffect(() => {
+    // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
+    const isValidApiKeyFormat = (key: string): boolean => {
+      const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
+      return fireworksApiKeyRegex.test(key)
+    }
+
+    const hasValidApiKey = apiKey?.trim() && isValidApiKeyFormat(apiKey.trim())
+
+    // If speed test is enabled but API key is invalid/missing, disable speed test
+    if (speedTestEnabled && !hasValidApiKey) {
+      setSpeedTestEnabled(false)
+    }
+  }, [apiKey, speedTestEnabled])
 
   const handleSpeedTestToggle = (enabled: boolean) => {
     setSpeedTestEnabled(enabled)
@@ -73,12 +89,13 @@ export default function App() {
 
         <main className="flex-1 p-6">
           {currentView === "single" ? (
-            <ChatInterface
-              apiKey={apiKey}
-              functionCallingEnabled={functionCallingEnabled}
-              functionDefinitions={functionDefinitions}
-              onClearChatReady={handleClearChatReady}
-            />
+                      <ChatInterface
+            apiKey={apiKey}
+            functionCallingEnabled={functionCallingEnabled}
+            functionDefinitions={functionDefinitions}
+            onClearChatReady={handleClearChatReady}
+            onApiKeySave={setApiKey}
+          />
           ) : (
             <ComparisonInterface
               speedTestEnabled={speedTestEnabled}
@@ -87,6 +104,7 @@ export default function App() {
               functionDefinitions={functionDefinitions}
               apiKey={apiKey}
               onClearChatReady={handleClearChatReady}
+              onApiKeySave={setApiKey}
             />
           )}
         </main>

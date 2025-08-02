@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useCallback } from "react"
 import { useChat } from "@/hooks/use-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -12,14 +12,17 @@ import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
+import { UpgradePromptDialog } from "@/components/upgrade-prompt-dialog"
+
 interface ChatInterfaceProps {
   apiKey: string
   functionCallingEnabled?: boolean
   functionDefinitions?: any[]
   onClearChatReady?: (clearChatFn: () => void) => void
+  onApiKeySave?: (apiKey: string) => void
 }
 
-export function ChatInterface({ apiKey, functionCallingEnabled = false, functionDefinitions, onClearChatReady }: ChatInterfaceProps) {
+export function ChatInterface({ apiKey, functionCallingEnabled = false, functionDefinitions, onClearChatReady, onApiKeySave }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
   const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
 
@@ -30,7 +33,19 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
     }
   }, [models, modelsLoading, selectedModel, setSelectedModel])
 
-  const { messages, isLoading, error, sendMessage, clearChat, messagesEndRef } = useChat(selectedModel, apiKey, functionDefinitions)
+  const {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    clearChat,
+    messagesEndRef,
+    rateLimitInfo,
+    showUpgradePrompt,
+    dismissUpgradePrompt,
+    resetRateLimit,
+    clearError
+  } = useChat(selectedModel, apiKey, functionDefinitions)
 
   // Expose clearChat function to parent component
   useEffect(() => {
@@ -40,9 +55,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
   }, [clearChat, onClearChatReady])
 
   const handleSendMessage = (message: string) => {
-    if (!apiKey.trim()) {
-      return
-    }
+    // No longer require API key - allow free tier usage
     sendMessage(message)
   }
 
@@ -54,6 +67,12 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
 
   const hasApiKey = apiKey.trim().length > 0 && isValidApiKeyFormat(apiKey.trim())
 
+  // Combined function to reset both rate limit and error state
+  const handleRateLimitReset = useCallback(() => {
+    resetRateLimit()
+    clearError()
+  }, [resetRateLimit, clearError])
+
   return (
     <div className="h-full flex flex-col relative">
 
@@ -63,11 +82,13 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           className="w-64"
-          disabled={!hasApiKey}
+          disabled={false} // No longer disable based on API key
           apiKey={apiKey}
           functionCallingEnabled={functionCallingEnabled}
         />
       </div>
+
+
 
       {/* Chat area */}
       <Card className="flex-1 flex flex-col border-0 rounded-none">
@@ -90,15 +111,19 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
             )}
           </div>
 
-          {error && <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{error}</div>}
+          {error && !rateLimitInfo?.isRateLimited && <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{error}</div>}
 
           {/* Input area with send and clear buttons */}
           <div className="p-4 border-t bg-background">
             <div className="flex gap-2 mb-3">
               <ChatInput
                 onSendMessage={handleSendMessage}
-                disabled={isLoading || !hasApiKey}
-                placeholder={hasApiKey ? `Ask ${selectedModel?.name || 'the model'} anything...` : "API key required to start chatting"}
+                disabled={isLoading || (rateLimitInfo?.isRateLimited ?? false)}
+                placeholder={
+                  rateLimitInfo?.isRateLimited
+                    ? "Rate limit reached. Get a free API key for unlimited access!"
+                    : `Ask ${selectedModel?.name || 'the model'} anything...`
+                }
                 showSendButton={false}
               />
               <Button
@@ -112,7 +137,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
                     }
                   }
                 }}
-                disabled={isLoading || !hasApiKey}
+                disabled={isLoading || (rateLimitInfo?.isRateLimited ?? false)}
                 className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
                 style={{ backgroundColor: '#6b2aff' }}
               >
@@ -120,7 +145,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
               </Button>
               <Button
                 onClick={clearChat}
-                disabled={messages.length === 0 || !hasApiKey}
+                disabled={messages.length === 0}
                 variant="outline"
                 size="default"
                 className="self-end bg-transparent"
@@ -144,6 +169,15 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
           </div>
         </CardContent>
       </Card>
+
+      {/* Upgrade prompt dialog */}
+      <UpgradePromptDialog
+        open={showUpgradePrompt}
+        onOpenChange={dismissUpgradePrompt}
+        rateLimitMessage={rateLimitInfo?.rateLimitMessage}
+        onApiKeySave={onApiKeySave || (() => {})}
+        onRateLimitReset={handleRateLimitReset}
+      />
     </div>
   )
 }

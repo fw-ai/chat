@@ -287,21 +287,17 @@ export function AppSidebar({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <SidebarMenuButton
-                        onClick={() => hasApiKey && onViewChange(item.id)}
-                        isActive={currentView === item.id && hasApiKey}
-                        disabled={!hasApiKey}
-                        tooltip={hasApiKey ? item.title : "API key required"}
-                        className={!hasApiKey ? "opacity-50 cursor-not-allowed" : ""}
+                        onClick={() => onViewChange(item.id)}
+                        isActive={currentView === item.id}
+                        disabled={false}
+                        tooltip={item.title}
+                        className=""
                       >
                         <item.icon />
                         {open && <span>{item.title}</span>}
                       </SidebarMenuButton>
                     </TooltipTrigger>
-                    {!hasApiKey && (
-                      <TooltipContent side="right">
-                        <p>API key required</p>
-                      </TooltipContent>
-                    )}
+
                   </Tooltip>
                 </SidebarMenuItem>
               ))}
@@ -328,7 +324,7 @@ export function AppSidebar({
                       id="function-calling"
                       checked={functionCallingEnabled}
                       onCheckedChange={handleFunctionCallingToggle}
-                      disabled={!hasApiKey}
+                      disabled={false}
                     />
                   </div>
 
@@ -369,18 +365,17 @@ export function AppSidebar({
                         variant="ghost"
                         size="sm"
                         className={`w-full justify-center p-2 ${
-                          functionCallingEnabled && hasApiKey ? 'text-blue-600' : 'text-muted-foreground'
-                        } ${!hasApiKey ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        onClick={() => hasApiKey && setOpen(true)}
-                        disabled={!hasApiKey}
+                          functionCallingEnabled ? 'text-blue-600' : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setOpen(true)}
+                        disabled={false}
                       >
                         <Code className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
                       <p>
-                        {!hasApiKey ? "API key required" :
-                         functionCallingEnabled ? "Function calling enabled" : "Enable function calling"}
+                        {functionCallingEnabled ? "Function calling enabled" : "Enable function calling"}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -399,22 +394,34 @@ export function AppSidebar({
                 {/* Speed Test Toggle - Only show when sidebar is open */}
                 {open && (
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 ${!hasApiKey ? 'opacity-50' : ''}`}>
                       <Rocket className="h-4 w-4" />
                       <Label htmlFor="speed-test" className="text-sm">
                         Enable Speed Test
                       </Label>
                     </div>
-                    <Switch
-                      id="speed-test"
-                      checked={speedTestEnabled}
-                      onCheckedChange={onSpeedTestToggle}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Switch
+                            id="speed-test"
+                            checked={speedTestEnabled && hasApiKey}
+                            onCheckedChange={hasApiKey ? onSpeedTestToggle : undefined}
+                            disabled={!hasApiKey}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {!hasApiKey && (
+                        <TooltipContent side="left">
+                          <p>For speed test please add an API Key</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
                   </div>
                 )}
 
-                {/* Concurrency Selector - Only show when speed test is enabled */}
-                {speedTestEnabled && open && (
+                {/* Concurrency Selector - Only show when speed test is enabled AND API key is present */}
+                {speedTestEnabled && hasApiKey && open && (
                   <div className="space-y-2">
                     <Label htmlFor="concurrency" className="text-sm text-muted-foreground">
                       Concurrency

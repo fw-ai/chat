@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useCallback } from "react"
 import { useComparisonChat } from "@/hooks/use-comparison-chat"
 import type { ChatModel } from "@/types/chat"
 import { ModelSelector } from "@/components/model-selector"
@@ -12,6 +12,8 @@ import { Trash2, Info } from "lucide-react"
 import { useModels } from "@/hooks/use-models"
 import { useModelSelection, hasCachedModel } from "@/hooks/use-model-selection"
 
+import { UpgradePromptDialog } from "@/components/upgrade-prompt-dialog"
+
 interface ComparisonInterfaceProps {
   speedTestEnabled?: boolean
   concurrency?: number
@@ -19,9 +21,10 @@ interface ComparisonInterfaceProps {
   functionDefinitions?: any[]
   apiKey: string
   onClearChatReady?: (clearChatFn: () => void) => void
+  onApiKeySave?: (apiKey: string) => void
 }
 
-export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, functionDefinitions, apiKey, onClearChatReady }: ComparisonInterfaceProps) {
+export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, functionDefinitions, apiKey, onClearChatReady, onApiKeySave }: ComparisonInterfaceProps) {
   const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
   const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
   const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
@@ -38,6 +41,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
   }, [models, modelsLoading, leftModel, rightModel, setLeftModel, setRightModel])
 
   const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey, functionDefinitions)
+  const { rateLimitInfo, showUpgradePrompt, dismissUpgradePrompt, resetRateLimit, clearError } = comparisonChat
 
   // Expose clearChat function to parent component
   useEffect(() => {
@@ -47,9 +51,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
   }, [comparisonChat.clearChat, onClearChatReady])
 
   const handleSendMessage = (message: string) => {
-    if (!apiKey.trim()) {
-      return
-    }
+    // No longer require API key - allow free tier usage
     comparisonChat.sendMessage(message)
   }
 
@@ -68,8 +70,16 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
 
   const hasApiKey = apiKey.trim().length > 0 && isValidApiKeyFormat(apiKey.trim())
 
+  // Combined function to reset both rate limit and error state
+  const handleRateLimitReset = useCallback(() => {
+    resetRateLimit()
+    clearError()
+  }, [resetRateLimit, clearError])
+
   return (
     <div className="h-full flex flex-col relative">
+
+
 
       {/* Two column layout */}
       <div className="flex-1 flex" style={{ width: '100%', maxWidth: '100%' }}>
@@ -81,7 +91,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               selectedModel={leftModel}
               onModelChange={setLeftModel}
               className="w-full"
-              disabled={!hasApiKey}
+              disabled={false} // No longer disable based on API key
               apiKey={apiKey}
               functionCallingEnabled={functionCallingEnabled}
             />
@@ -108,7 +118,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               )}
             </div>
 
-            {comparisonChat.leftChat.error && (
+            {comparisonChat.leftChat.error && !rateLimitInfo?.isRateLimited && (
               <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{comparisonChat.leftChat.error}</div>
             )}
           </div>
@@ -122,7 +132,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               selectedModel={rightModel}
               onModelChange={setRightModel}
               className="w-full"
-              disabled={!hasApiKey}
+              disabled={false} // No longer disable based on API key
               apiKey={apiKey}
               functionCallingEnabled={functionCallingEnabled}
             />
@@ -149,7 +159,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               )}
             </div>
 
-            {comparisonChat.rightChat.error && (
+            {comparisonChat.rightChat.error && !rateLimitInfo?.isRateLimited && (
               <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{comparisonChat.rightChat.error}</div>
             )}
           </div>
@@ -210,8 +220,12 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
         <div className="flex gap-2 mb-3">
           <ChatInput
             onSendMessage={handleSendMessage}
-            disabled={isLoading || !hasApiKey}
-            placeholder={hasApiKey ? "Send a message to compare responses from both models..." : "API key required to start chatting"}
+            disabled={isLoading || (rateLimitInfo?.isRateLimited ?? false)}
+            placeholder={
+              rateLimitInfo?.isRateLimited
+                ? "Rate limit reached. Get a free API key for unlimited access!"
+                : "Send a message to compare responses from both models..."
+            }
             showSendButton={false}
           />
           <Button
@@ -225,7 +239,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
                 }
               }
             }}
-            disabled={isLoading || !hasApiKey}
+            disabled={isLoading || (rateLimitInfo?.isRateLimited ?? false)}
             className="self-end bg-fireworks-purple hover:bg-fireworks-purple-dark text-white border-0"
             style={{ backgroundColor: '#6b2aff' }}
           >
@@ -233,7 +247,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
           </Button>
           <Button
             onClick={handleClearChats}
-            disabled={!hasMessages || !hasApiKey}
+            disabled={!hasMessages}
             variant="outline"
             size="default"
             className="self-end bg-transparent"
@@ -255,6 +269,15 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
           </span>
         </div>
       </div>
+
+      {/* Upgrade prompt dialog */}
+      <UpgradePromptDialog
+        open={showUpgradePrompt}
+        onOpenChange={dismissUpgradePrompt}
+        rateLimitMessage={rateLimitInfo?.rateLimitMessage}
+        onApiKeySave={onApiKeySave || (() => {})}
+        onRateLimitReset={handleRateLimitReset}
+      />
     </div>
   )
 }

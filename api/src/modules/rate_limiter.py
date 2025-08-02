@@ -196,11 +196,7 @@ async def verify_rate_limit(http_request: Request, rate_limiter: DualLayerRateLi
 
     if not allowed:
         if usage_info.limit_reason == "individual_ip":
-            detail = (
-                f"Daily limit exceeded: "
-                f"{usage_info.ip_limit} messages per IP address. "
-                f"Sign in with a Fireworks API key for unlimited access."
-            )
+            detail = "Daily limit exceeded, sign in with a Fireworks API key for unlimited access."
         else:
             detail = (
                 f"Network limit exceeded: {usage_info.prefix_limit} messages per network. "
@@ -222,4 +218,6 @@ async def verify_rate_limit(http_request: Request, rate_limiter: DualLayerRateLi
                 ),
             },
         )
-    logger.info(f"Rate limit check passed for IP: {client_ip}")
+    logger.info(
+        f"Rate limit check passed for IP: {client_ip} remaining: {usage_info.ip_remaining}"
+    )

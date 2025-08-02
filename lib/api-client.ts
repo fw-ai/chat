@@ -14,7 +14,7 @@ export interface ChatRequest {
   model: string
   conversation_id?: string
   function_definitions?: any[]
-  apiKey: string
+  apiKey?: string
 }
 
 // Internal interface for backend API
@@ -32,7 +32,7 @@ export interface ComparisonInitRequest {
   messages: ChatMessage[]
   model_keys: string[]
   function_definitions?: any[]
-  apiKey: string
+  apiKey?: string
 }
 
 interface BackendComparisonInitRequest {
@@ -54,7 +54,7 @@ export interface MetricsRequest {
   concurrency?: number
   temperature?: number
   prompt?: string
-  apiKey: string
+  apiKey?: string
 }
 
 interface BackendMetricsRequest {
@@ -73,7 +73,7 @@ export interface CompareRequest {
   conversation_id?: string
   speed_test?: boolean
   concurrency?: number
-  apiKey: string
+  apiKey?: string
 }
 
 // Internal interface for backend API (LEGACY)
@@ -107,6 +107,21 @@ export interface CompareResponse {
   }
 }
 
+export interface RateLimitHeaders {
+  ipLimit?: number
+  ipRemaining?: number
+  prefixLimit?: number
+  prefixRemaining?: number
+}
+
+// Simple interface for rate limit errors - no custom class needed
+export interface RateLimitErrorInfo {
+  isRateLimit: true
+  status: 429
+  headers: RateLimitHeaders
+  message: string
+}
+
 export class ApiClient {
   private baseURL: string
 
@@ -126,6 +141,78 @@ export class ApiClient {
     return headers
   }
 
+  private extractRateLimitHeaders(response: Response): RateLimitHeaders {
+    return {
+      ipLimit: response.headers.has('X-RateLimit-Limit-IP')
+        ? parseInt(response.headers.get('X-RateLimit-Limit-IP')!)
+        : undefined,
+      ipRemaining: response.headers.has('X-RateLimit-Remaining-IP')
+        ? parseInt(response.headers.get('X-RateLimit-Remaining-IP')!)
+        : undefined,
+      prefixLimit: response.headers.has('X-RateLimit-Limit-Prefix')
+        ? parseInt(response.headers.get('X-RateLimit-Limit-Prefix')!)
+        : undefined,
+      prefixRemaining: response.headers.has('X-RateLimit-Remaining-Prefix')
+        ? parseInt(response.headers.get('X-RateLimit-Remaining-Prefix')!)
+        : undefined,
+    }
+  }
+
+  private async handleHttpError(response: Response): Promise<never> {
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+
+    // Special handling for rate limiting
+    if (response.status === 429) {
+      try {
+        const errorData = await response.json()
+        if (errorData.detail) {
+          errorMessage = errorData.detail
+        }
+      } catch {
+        errorMessage = "Daily limit exceeded. Sign in with a Fireworks API key for unlimited access."
+      }
+
+      const rateLimitHeaders = this.extractRateLimitHeaders(response)
+      const error = new Error(errorMessage) as Error & RateLimitErrorInfo
+      error.isRateLimit = true
+      error.status = 429
+      error.headers = rateLimitHeaders
+      error.message = errorMessage
+      throw error
+    }
+
+    // Enhanced error handling based on status codes
+    try {
+      const errorData = await response.json()
+      if (errorData.detail) {
+        errorMessage = errorData.detail
+      }
+    } catch {
+      // Fallback to status-based messages if JSON parsing fails
+      switch (response.status) {
+        case 400:
+          errorMessage = "Invalid request - check parameters"
+          break
+        case 401:
+          errorMessage = "Authentication failed - check API key"
+          break
+        case 404:
+          errorMessage = "Resource not found"
+          break
+        case 500:
+          errorMessage = "Server error - please try again later"
+          break
+        case 503:
+          errorMessage = "Service unavailable - please try again later"
+          break
+        default:
+          errorMessage = `Request failed with status ${response.status}`
+      }
+    }
+
+    throw new Error(errorMessage)
+  }
+
   async getModels(apiKey?: string, functionCallingEnabled?: boolean): Promise<ChatModel[]> {
     // Build query parameters
     const queryParams = new URLSearchParams()
@@ -141,32 +228,7 @@ export class ApiClient {
     })
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
-      // Enhanced error handling based on status codes
-      try {
-        const errorData = await response.json()
-        if (errorData.detail) {
-          errorMessage = errorData.detail
-        }
-      } catch {
-        // Fallback to status-based messages if JSON parsing fails
-        switch (response.status) {
-          case 401:
-            errorMessage = "Authentication failed - check API key"
-            break
-          case 500:
-            errorMessage = "Server error - unable to load models"
-            break
-          case 503:
-            errorMessage = "Service unavailable - please try again later"
-            break
-          default:
-            errorMessage = `Failed to load models: ${response.status}`
-        }
-      }
-
-      throw new Error(errorMessage)
+      await this.handleHttpError(response)
     }
 
     const data = await response.json()
@@ -195,30 +257,7 @@ export class ApiClient {
     })
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
-      try {
-        const errorData = await response.json()
-        if (errorData.detail) {
-          errorMessage = errorData.detail
-        }
-      } catch {
-        switch (response.status) {
-          case 400:
-            errorMessage = "Invalid request - check model keys and message format"
-            break
-          case 401:
-            errorMessage = "Authentication failed - check API key"
-            break
-          case 500:
-            errorMessage = "Server error - please try again later"
-            break
-          default:
-            errorMessage = `Request failed with status ${response.status}`
-        }
-      }
-
-      throw new Error(errorMessage)
+      await this.handleHttpError(response)
     }
 
     return await response.json()
@@ -242,35 +281,7 @@ export class ApiClient {
     })
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
-      // Enhanced error handling based on status codes
-      try {
-        const errorData = await response.json()
-        if (errorData.detail) {
-          errorMessage = errorData.detail
-        }
-      } catch {
-        // Fallback to status-based messages if JSON parsing fails
-        switch (response.status) {
-          case 400:
-            errorMessage = "Invalid request - check model key and message format"
-            break
-          case 401:
-            errorMessage = "Authentication failed - check API key"
-            break
-          case 404:
-            errorMessage = "Model not found - check model key"
-            break
-          case 500:
-            errorMessage = "Server error - please try again later"
-            break
-          default:
-            errorMessage = `Request failed with status ${response.status}`
-        }
-      }
-
-      throw new Error(errorMessage)
+      await this.handleHttpError(response)
     }
 
     if (!response.body) {
@@ -297,30 +308,7 @@ export class ApiClient {
     })
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
-      try {
-        const errorData = await response.json()
-        if (errorData.detail) {
-          errorMessage = errorData.detail
-        }
-      } catch {
-        switch (response.status) {
-          case 400:
-            errorMessage = "Invalid request - check model keys and parameters"
-            break
-          case 401:
-            errorMessage = "Authentication failed - check API key"
-            break
-          case 500:
-            errorMessage = "Server error - please try again later"
-            break
-          default:
-            errorMessage = `Request failed with status ${response.status}`
-        }
-      }
-
-      throw new Error(errorMessage)
+      await this.handleHttpError(response)
     }
 
     if (!response.body) {
@@ -348,35 +336,7 @@ export class ApiClient {
     })
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-
-      // Enhanced error handling based on status codes
-      try {
-        const errorData = await response.json()
-        if (errorData.detail) {
-          errorMessage = errorData.detail
-        }
-      } catch {
-        // Fallback to status-based messages if JSON parsing fails
-        switch (response.status) {
-          case 400:
-            errorMessage = "Invalid request - check model keys and message format"
-            break
-          case 401:
-            errorMessage = "Authentication failed - check API key"
-            break
-          case 404:
-            errorMessage = "One or more models not found - check model keys"
-            break
-          case 500:
-            errorMessage = "Server error - please try again later"
-            break
-          default:
-            errorMessage = `Request failed with status ${response.status}`
-        }
-      }
-
-      throw new Error(errorMessage)
+      await this.handleHttpError(response)
     }
 
     if (!response.body) {
