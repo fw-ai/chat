@@ -34,8 +34,20 @@ class AppServices:
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = cls()
-                    cls._instance._initialize()
+                    try:
+                        logger.info("Creating AppServices singleton instance...")
+                        cls._instance = cls()
+                        cls._instance._initialize()
+                        logger.info(
+                            "AppServices singleton instance created successfully"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create AppServices singleton: {str(e)}",
+                            exc_info=True,
+                        )
+                        cls._instance = None  # Reset to None on failure
+                        raise
         return cls._instance
 
     def _initialize(self):
@@ -47,15 +59,29 @@ class AppServices:
             logger.info("Initializing application services...")
 
             # Initialize core config
+            logger.info("Loading FireworksConfig...")
             self._config = FireworksConfig()
+            logger.info("FireworksConfig loaded successfully")
+
+            # Load models first to validate config
+            logger.info("Loading models from config...")
+            self._models = self._config.get_all_models()
+            logger.info(
+                f"Loaded {len(self._models) if self._models else 0} models from config"
+            )
 
             # Initialize dependent services
+            logger.info("Initializing SessionManager...")
             self._session_manager = SessionManager(self._config.config)
-            self._comparison_service = ComparisonService(self._session_manager)
-            self._rate_limiter = DualLayerRateLimiter()
+            logger.info("SessionManager initialized")
 
-            # Load models
-            self._models = self._config.get_all_models()
+            logger.info("Initializing ComparisonService...")
+            self._comparison_service = ComparisonService(self._session_manager)
+            logger.info("ComparisonService initialized")
+
+            logger.info("Initializing DualLayerRateLimiter...")
+            self._rate_limiter = DualLayerRateLimiter()
+            logger.info("DualLayerRateLimiter initialized")
 
             self._initialized = True
             logger.info(
@@ -66,6 +92,13 @@ class AppServices:
             logger.error(
                 f"Failed to initialize application services: {str(e)}", exc_info=True
             )
+            # Reset state on failure
+            self._config = None
+            self._session_manager = None
+            self._comparison_service = None
+            self._rate_limiter = None
+            self._models = None
+            self._initialized = False
             raise
 
     @property
@@ -101,6 +134,9 @@ class AppServices:
         """Get models dictionary"""
         if not self._initialized:
             raise RuntimeError("Services not initialized")
+        if self._models is None:
+            logger.error("Models is None even though services are initialized")
+            return {}
         return self._models
 
     def is_initialized(self) -> bool:
@@ -111,7 +147,14 @@ class AppServices:
 # Dependency functions for FastAPI
 def get_app_services() -> AppServices:
     """FastAPI dependency to get AppServices singleton"""
-    return AppServices.get_instance()
+    try:
+        return AppServices.get_instance()
+    except Exception as e:
+        logger.error(
+            f"get_app_services: Failed to get AppServices instance: {str(e)}",
+            exc_info=True,
+        )
+        raise
 
 
 def get_config() -> FireworksConfig:
@@ -140,5 +183,11 @@ def get_rate_limiter() -> DualLayerRateLimiter:
 
 def get_models() -> Dict[str, Any]:
     """FastAPI dependency to get models dictionary"""
-    services = get_app_services()
-    return services.models
+    try:
+        services = get_app_services()
+        models = services.models
+        logger.info(f"get_models: Retrieved {len(models) if models else 0} models")
+        return models
+    except Exception as e:
+        logger.error(f"get_models: Failed to get models: {str(e)}", exc_info=True)
+        return {}

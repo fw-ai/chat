@@ -259,7 +259,7 @@ async def get_available_models(
     """Get all available models, optionally filtered by function calling capability"""
     try:
         if not models:
-            logger.error("Models dictionary is empty after initialization")
+            logger.error(f"Models is falsy: models={models}, type={type(models)}")
             raise HTTPException(status_code=500, detail="No models available")
 
         logger.info(f"Total models available: {len(models)}")
