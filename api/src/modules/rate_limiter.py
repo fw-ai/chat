@@ -131,9 +131,9 @@ class DualLayerRateLimiter:
 
             pipe = redis_client.pipeline()
             pipe.incr(ip_key)
-            pipe.expire(ip_key, 86400)  # 24 hours TTL
+            pipe.expire(ip_key, 86400)  # 24 hours in seconds
             pipe.incr(prefix_key)
-            pipe.expire(prefix_key, 86400)  # 24 hours TTL
+            pipe.expire(prefix_key, 86400)  # 24 hours in seconds
             await pipe.execute()
 
             return True, RateLimitInfo(
