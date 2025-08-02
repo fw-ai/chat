@@ -222,3 +222,4 @@ async def verify_rate_limit(http_request: Request, rate_limiter: DualLayerRateLi
                 ),
             },
         )
+    logger.info(f"Rate limit check passed for IP: {client_ip}")
