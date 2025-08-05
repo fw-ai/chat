@@ -2,7 +2,19 @@ models:
   kimi_k2:
     id: "accounts/fireworks/models/kimi-k2-instruct"
     name: "Kimi K2"
-    display_name: "Kimi K2"
+    display_name: "Kimi K2 (Moonshot AI)"
+    function_calling: true
+
+  gpt_oss_120b:
+    id: "accounts/fireworks/models/gpt-oss-120b"
+    name: "GPT OSS 120B"
+    display_name: "GPT OSS 120B (OpenAI)"
+    function_calling: true
+
+  gpt_oss_20b:
+    id: "accounts/fireworks/models/gpt-oss-20b"
+    name: "GPT OSS 20B"
+    display_name: "GPT OSS 20B (OpenAI)"
     function_calling: true
 
   qwen3_coder:
