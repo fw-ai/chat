@@ -9,13 +9,13 @@ models:
     id: "accounts/fireworks/models/gpt-oss-120b"
     name: "GPT OSS 120B"
     display_name: "GPT OSS 120B (OpenAI)"
-    function_calling: true
+    function_calling: false
 
   gpt_oss_20b:
     id: "accounts/fireworks/models/gpt-oss-20b"
     name: "GPT OSS 20B"
     display_name: "GPT OSS 20B (OpenAI)"
-    function_calling: true
+    function_calling: false
 
   qwen3_coder:
     id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"
