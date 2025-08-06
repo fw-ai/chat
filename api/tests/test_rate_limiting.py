@@ -24,9 +24,9 @@ class TestDualLayerRateLimiter:
         # IPv6 tests
         assert (
             limiter.extract_ip_prefix("2001:db8:85a3:0:0:8a2e:370:7334")
-            == "2001:db8:85a3:0"
+            == "2001:0db8:85a3:0000"
         )
-        assert limiter.extract_ip_prefix("::1") == "1:0:0:0"
+        assert limiter.extract_ip_prefix("::1") == "0000:0000:0000:0000"
 
         # Invalid IP fallback
         assert limiter.extract_ip_prefix("invalid.ip.address") == "invalid.ip"
@@ -52,15 +52,15 @@ class TestDualLayerRateLimiter:
         """Test individual IP limit exceeded"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method to return values at limit
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.return_value = {
-                "ip_key": "ip_usage:2025-01-31:192.168.1.100",
-                "prefix_key": "prefix_usage:2025-01-31:192.168",
-                "ip_usage": APP_CONFIG["rate_limiting"]["individual_ip_limit"],
-                "prefix_usage": APP_CONFIG["rate_limiting"]["ip_prefix_limit"],
-                "redis_client": AsyncMock(),
-            }
+        # Mock Redis client to return values at IP limit
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_client = AsyncMock()
+            # Return IP usage at limit, prefix usage below limit
+            mock_client.get.side_effect = [
+                str(APP_CONFIG["rate_limiting"]["individual_ip_limit"]),  # ip_usage
+                "5",  # prefix_usage (below limit)
+            ]
+            mock_redis_factory.return_value = mock_client
 
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
@@ -74,17 +74,17 @@ class TestDualLayerRateLimiter:
         """Test IP prefix limit exceeded"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method to return prefix at limit
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.return_value = {
-                "ip_key": "ip_usage:2025-01-31:192.168.1.100",
-                "prefix_key": "prefix_usage:2025-01-31:192.168",
-                "ip_usage": 2,  # Under IP limit
-                "prefix_usage": APP_CONFIG["rate_limiting"][
-                    "ip_prefix_limit"
-                ],  # At prefix limit
-                "redis_client": AsyncMock(),
-            }
+        # Mock Redis client to return prefix at limit, IP below limit
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_client = AsyncMock()
+            # Return IP usage below limit, prefix usage at limit
+            mock_client.get.side_effect = [
+                "2",  # ip_usage (below limit)
+                str(
+                    APP_CONFIG["rate_limiting"]["ip_prefix_limit"]
+                ),  # prefix_usage at limit
+            ]
+            mock_redis_factory.return_value = mock_client
 
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
@@ -94,75 +94,59 @@ class TestDualLayerRateLimiter:
             assert info.prefix_limit == APP_CONFIG["rate_limiting"]["ip_prefix_limit"]
 
     @pytest.mark.asyncio
-    async def test_redis_failure_fail_closed(self):
-        """Test that Redis failures result in fail-closed behavior"""
+    async def test_redis_failure_fail_open(self):
+        """Test that Redis failures result in fail-open behavior"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method to simulate a general exception
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.side_effect = Exception("Redis connection failed")
+        # Mock Redis client to simulate a general exception
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_redis_factory.side_effect = Exception("Redis connection failed")
 
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
-            assert not allowed  # Should fail closed
-            assert info.limit_reason == "error_failclosed"
-
-    @pytest.mark.asyncio
-    async def test_event_loop_error_fail_open(self):
-        """Test that event loop errors result in fail-open behavior"""
-        limiter = DualLayerRateLimiter()
-
-        # Mock the _get_usage_info method to simulate event loop error
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.side_effect = RuntimeError("Event loop is closed")
-
-            allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
-
-            assert allowed  # Should fail open for event loop errors
-            assert info.limit_reason == "event_loop_error"
+            assert allowed  # Should fail open
+            assert info.limit_reason == "redis_error"
 
     @pytest.mark.asyncio
     async def test_redis_connection_error_fail_open(self):
         """Test that Redis connection errors result in fail-open behavior"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method to simulate connection error
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.side_effect = ConnectionError("Connection to Redis failed")
+        # Mock Redis client to simulate connection error
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_redis_factory.side_effect = ConnectionError(
+                "Connection to Redis failed"
+            )
 
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
             assert allowed  # Should fail open for connection errors
-            assert info.limit_reason == "connection_error"
+            assert info.limit_reason == "redis_error"
 
     @pytest.mark.asyncio
     async def test_redis_timeout_error_fail_open(self):
         """Test that Redis timeout errors result in fail-open behavior"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method to simulate timeout error
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.side_effect = TimeoutError("Redis operation timed out")
+        # Mock Redis client to simulate timeout error
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_redis_factory.side_effect = TimeoutError("Redis operation timed out")
 
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
             assert allowed  # Should fail open for timeout errors
-            assert info.limit_reason == "connection_error"
+            assert info.limit_reason == "redis_error"
 
     @pytest.mark.asyncio
     async def test_usage_info_without_increment(self):
         """Test getting usage info without incrementing counters"""
         limiter = DualLayerRateLimiter()
 
-        # Mock the _get_usage_info method
-        with patch.object(limiter, "_get_usage_info") as mock_usage:
-            mock_usage.return_value = {
-                "ip_key": "ip_usage:2025-01-31:192.168.1.100",
-                "prefix_key": "prefix_usage:2025-01-31:192.168",
-                "ip_usage": 3,
-                "prefix_usage": 25,
-                "redis_client": AsyncMock(),
-            }
+        # Mock Redis client to return specific usage values
+        with patch.object(limiter, "_get_redis_client") as mock_redis_factory:
+            mock_client = AsyncMock()
+            mock_client.get.side_effect = ["3", "25"]  # ip_usage=3, prefix_usage=25
+            mock_redis_factory.return_value = mock_client
 
             info = await limiter.get_usage_info("192.168.1.100")
 
@@ -178,61 +162,12 @@ class TestDualLayerRateLimiter:
             )
 
 
-class TestComparisonRateLimiting:
-    """Unit tests for comparison rate limiting functionality"""
+class TestSimplifiedRateLimiting:
+    """Unit tests for simplified rate limiting functionality"""
 
     @pytest.mark.asyncio
-    async def test_rate_limit_key_generation_single_chat(self):
-        """Test rate limit key generation for single chat"""
-        client_ip = "192.168.1.100"
-        comparison_id = None
-
-        # Test key generation logic
-        rate_limit_key = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
-
-        assert rate_limit_key == "192.168.1.100"
-
-    @pytest.mark.asyncio
-    async def test_rate_limit_key_generation_comparison_chat(self):
-        """Test rate limit key generation for comparison chat"""
-        client_ip = "192.168.1.100"
-        comparison_id = "comp_123456"
-
-        # Test key generation logic
-        rate_limit_key = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
-
-        assert rate_limit_key == "192.168.1.100:comp_123456"
-
-    @pytest.mark.asyncio
-    async def test_comparison_uses_different_key_than_single(self):
-        """Test that comparison chat uses different key than single chat"""
-        client_ip = "192.168.1.100"
-        comparison_id = "comp_123456"
-
-        single_key = client_ip
-        comparison_key = f"{client_ip}:{comparison_id}"
-
-        assert single_key != comparison_key
-        assert single_key == "192.168.1.100"
-        assert comparison_key == "192.168.1.100:comp_123456"
-
-    @pytest.mark.asyncio
-    async def test_multiple_models_same_comparison_use_same_key(self):
-        """Test that multiple models in same comparison use same rate limit key"""
-        client_ip = "192.168.1.100"
-        comparison_id = "comp_123456"
-
-        # First model request
-        key_model_1 = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
-        # Second model request (same comparison)
-        key_model_2 = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
-
-        assert key_model_1 == key_model_2
-        assert key_model_1 == "192.168.1.100:comp_123456"
-
-    @pytest.mark.asyncio
-    async def test_verify_rate_limit_single_chat(self):
-        """Test verify_rate_limit function for single chat"""
+    async def test_verify_rate_limit_success(self):
+        """Test verify_rate_limit function with successful rate limit check"""
         # Create mock request
         mock_request = MagicMock(spec=Request)
         mock_request.headers = {"x-forwarded-for": "192.168.1.100"}
@@ -240,14 +175,14 @@ class TestComparisonRateLimiting:
         # Create mock rate limiter
         mock_limiter = MagicMock(spec=DualLayerRateLimiter)
         mock_limiter.check_and_increment_usage = AsyncMock(
-            return_value=(True, MagicMock(ip_remaining=4))
+            return_value=(True, MagicMock(ip_remaining=4, prefix_remaining=45))
         )
 
         with patch(
             "src.modules.rate_limiter.extract_client_ip", return_value="192.168.1.100"
         ):
             # Should not raise exception
-            await verify_rate_limit(mock_request, mock_limiter, None)
+            await verify_rate_limit(mock_request, mock_limiter)
 
             # Verify the rate limiter was called with IP only
             mock_limiter.check_and_increment_usage.assert_called_once_with(
@@ -255,30 +190,35 @@ class TestComparisonRateLimiting:
             )
 
     @pytest.mark.asyncio
-    async def test_verify_rate_limit_comparison_chat(self):
-        """Test verify_rate_limit function for comparison chat"""
+    async def test_verify_rate_limit_failure(self):
+        """Test verify_rate_limit function with rate limit exceeded"""
         # Create mock request
         mock_request = MagicMock(spec=Request)
         mock_request.headers = {"x-forwarded-for": "192.168.1.100"}
 
-        # Create mock rate limiter
+        # Create mock rate limiter that returns failure
+        from src.modules.rate_limiter import RateLimitInfo
+
         mock_limiter = MagicMock(spec=DualLayerRateLimiter)
         mock_limiter.check_and_increment_usage = AsyncMock(
-            return_value=(True, MagicMock(ip_remaining=4))
+            return_value=(
+                False,
+                RateLimitInfo(
+                    ip_usage=10,
+                    ip_limit=10,
+                    prefix_usage=25,
+                    prefix_limit=50,
+                    limit_reason="individual_ip",
+                ),
+            )
         )
-
-        comparison_id = "comp_123456"
 
         with patch(
             "src.modules.rate_limiter.extract_client_ip", return_value="192.168.1.100"
         ):
-            # Should not raise exception
-            await verify_rate_limit(mock_request, mock_limiter, comparison_id)
-
-            # Verify the rate limiter was called with IP:comparison_id
-            mock_limiter.check_and_increment_usage.assert_called_once_with(
-                "192.168.1.100:comp_123456"
-            )
+            # Should raise HTTPException
+            with pytest.raises(Exception):  # HTTPException
+                await verify_rate_limit(mock_request, mock_limiter)
 
 
 class TestAuthHelpers:

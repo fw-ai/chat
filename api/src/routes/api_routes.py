@@ -250,9 +250,8 @@ async def check_rate_limit_and_auth(
 
     if not client_api_key:
         await verify_rate_limit(
-            http_request=http_request,
+            request=http_request,
             rate_limiter=rate_limiter,
-            comparison_id=comparison_id,
         )
     else:
         client_api_key = await get_validated_api_key(http_request)
@@ -401,8 +400,9 @@ async def single_chat(
             session_type = "single"
             primary_id = session_id
 
+        # SIMPLIFIED: Always apply rate limiting to test modal
         client_api_key = await check_rate_limit_and_auth(
-            http_request, rate_limiter, request.comparison_id
+            http_request, rate_limiter, None
         )
 
         logger.info(
