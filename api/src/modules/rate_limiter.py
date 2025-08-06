@@ -178,16 +178,15 @@ class DualLayerRateLimiter:
         """
         ip_key, prefix_key = self._get_prefix_key(ip)
 
-        pipe = redis_client.pipeline()
-        pipe.get(ip_key)
-        pipe.get(prefix_key)
-        current_usage = await pipe.execute()
+        # Execute operations individually to avoid pipeline lock issues
+        ip_usage_value = await redis_client.get(ip_key)
+        prefix_usage_value = await redis_client.get(prefix_key)
 
         return {
             "ip_key": ip_key,
             "prefix_key": prefix_key,
-            "ip_usage": int(current_usage[0] or 0),
-            "prefix_usage": int(current_usage[1] or 0),
+            "ip_usage": int(ip_usage_value or 0),
+            "prefix_usage": int(prefix_usage_value or 0),
         }
 
     @staticmethod
@@ -283,27 +282,28 @@ class DualLayerRateLimiter:
                     limit_reason="ip_prefix",
                 )
 
-            pipe = redis_client.pipeline()
-            pipe.incr(ip_key)
-            pipe.expire(ip_key, 86400)  # 24 hours in seconds
-            pipe.incr(prefix_key)
-            pipe.expire(prefix_key, 86400)  # 24 hours in seconds
+            # Execute operations individually to avoid pipeline lock issues in different event loops
+            logger.debug(f"Executing Redis operations to increment usage for IP {ip}")
+            start_time = datetime.now()
+
+            # Execute operations individually
+            await redis_client.incr(ip_key)
+            await redis_client.expire(ip_key, 86400)  # 24 hours in seconds
+            await redis_client.incr(prefix_key)
+            await redis_client.expire(prefix_key, 86400)  # 24 hours in seconds
 
             # For comparison requests, mark this comparison as counted
             if comparison_id:
                 comparison_key = f"comparison_counted:{comparison_id}"
-                pipe.set(comparison_key, "1")
-                pipe.expire(
+                await redis_client.set(comparison_key, "1")
+                await redis_client.expire(
                     comparison_key, 300
                 )  # 5 minutes - should be enough for comparison requests
 
-            logger.debug(f"Executing Redis pipeline to increment usage for IP {ip}")
-            start_time = datetime.now()
-            await pipe.execute()
-            pipeline_duration = (datetime.now() - start_time).total_seconds()
+            operations_duration = (datetime.now() - start_time).total_seconds()
 
             logger.info(
-                f"Rate limit check PASSED for IP {ip} (pipeline: {pipeline_duration:.3f}s) - New usage: IP={ip_usage + 1}/{self.IP_LIMIT}, Prefix={prefix_usage + 1}/{self.PREFIX_LIMIT}"
+                f"Rate limit check PASSED for IP {ip} (operations: {operations_duration:.3f}s) - New usage: IP={ip_usage + 1}/{self.IP_LIMIT}, Prefix={prefix_usage + 1}/{self.PREFIX_LIMIT}"
             )
 
             return True, RateLimitInfo(
