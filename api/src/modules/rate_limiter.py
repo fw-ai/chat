@@ -29,6 +29,7 @@ class RateLimitInfo:
 class DualLayerRateLimiter:
     def __init__(self, redis_url: str = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
+        logger.info(f"Using Redis URL: {self.redis_url[-10:]}")
         self.redis: Optional[redis.Redis] = None
         self.IP_LIMIT = int(os.getenv("RATE_LIMIT_IP", "5"))
         self.PREFIX_LIMIT = int(os.getenv("RATE_LIMIT_PREFIX", "50"))
