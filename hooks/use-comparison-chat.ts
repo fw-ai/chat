@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import type { Message, ChatModel, ComparisonChatState, SpeedTestResults, LiveMetrics } from "@/types/chat"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, type RateLimitErrorInfo } from "@/lib/api-client"
 import { parseThinkingContent } from "@/lib/thinking-parser"
 import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
+import { useRateLimit } from "@/hooks/use-rate-limit"
 
 export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string, functionDefinitions?: any[]) {
   const [state, setState] = useState<ComparisonChatState>({
@@ -18,6 +19,16 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     comparisonId: undefined,  // NEW: Track comparison ID
   })
   const [conversationId, setConversationId] = useState<string | undefined>()
+
+  // Rate limiting hook
+  const {
+    rateLimitInfo,
+    showUpgradePrompt,
+    handleApiResponse,
+    handleRateLimitError,
+    dismissUpgradePrompt,
+    resetRateLimit,
+  } = useRateLimit()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -157,6 +168,9 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
 
   const sendMessage = useCallback(
     async (content: string) => {
+      // Basic validation - no longer require API key for free tier
+      if (!content.trim() || !leftModel || !rightModel || !state.sessionId) return
+
       // Fireworks API key validation regex: fw_ followed by 24 alphanumeric characters
       const isValidApiKeyFormat = (key: string): boolean => {
         const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
@@ -165,7 +179,10 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
 
       const hasValidApiKey = apiKey?.trim() && isValidApiKeyFormat(apiKey.trim())
 
-      if (!content.trim() || !leftModel || !rightModel || !state.sessionId || !hasValidApiKey) return
+      // Clear any previous rate limit info when starting a new request
+      if (rateLimitInfo?.isRateLimited) {
+        resetRateLimit()
+      }
 
       // Update session activity
       sessionStateManager.updateSessionActivity(state.sessionId)
@@ -229,7 +246,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           messages,
           model_keys: [leftModel.id, rightModel.id],
           function_definitions: functionDefinitions,
-          apiKey: apiKey!,
+          apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
         })
 
         // Update state with comparison ID
@@ -256,7 +273,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               model: leftModel.id,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
-              apiKey: apiKey!,
+              apiKey: hasValidApiKey ? apiKey : undefined,
             }, comparisonId, leftAbortController.signal)
 
             let leftContent = ""
@@ -338,7 +355,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                     }
                   }
                 }
-                
+
                 if (leftStreamCompleted) break
               }
 
@@ -384,7 +401,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               model: rightModel.id,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
-              apiKey: apiKey!,
+              apiKey: hasValidApiKey ? apiKey : undefined,
             }, comparisonId, rightAbortController.signal)
 
             let rightContent = ""
@@ -466,7 +483,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                     }
                   }
                 }
-                
+
                 if (rightStreamCompleted) break
               }
 
@@ -514,7 +531,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                 model_keys: [leftModel.id, rightModel.id],
                 comparison_id: comparisonId,
                 concurrency: speedTestEnabled ? concurrency : undefined,
-                apiKey: apiKey!,
+                apiKey: hasValidApiKey ? apiKey : undefined,
               })
 
               let lastMetricsUpdate = 0 // Track last metrics update time for throttling
@@ -561,33 +578,84 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         activeRequestsRef.current = {}
 
       } catch (error) {
-        console.error("Failed to send comparison message:", error)
-        setState((prev) => ({
-          ...prev,
-          leftChat: {
-            ...prev.leftChat,
-            messages: prev.leftChat.messages.map((msg) =>
-              msg.id === leftAssistantMessage.id
-                ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
-                : msg,
-            ),
-            isLoading: false,
-            error: "Failed to send message. Please try again.",
-          },
-          rightChat: {
-            ...prev.rightChat,
-            messages: prev.rightChat.messages.map((msg) =>
-              msg.id === rightAssistantMessage.id
-                ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
-                : msg,
-            ),
-            isLoading: false,
-            error: "Failed to send message. Please try again.",
-          },
-        }))
+        // Handle rate limit errors specifically
+        const rateLimitError = error as Error & Partial<RateLimitErrorInfo>
+
+        if (rateLimitError.isRateLimit) {
+          const errorMessage = rateLimitError.message || 'Daily limit exceeded'
+          setState((prev) => ({
+            ...prev,
+            leftChat: {
+              ...prev.leftChat,
+              messages: prev.leftChat.messages.map((msg) =>
+                msg.id === leftAssistantMessage.id
+                  ? { ...msg, error: "Daily limit exceeded", isStreaming: false, content: "" }
+                  : msg,
+              ),
+              isLoading: false,
+              // Don't set error in state for rate limits - modal handles it
+              error: null,
+            },
+            rightChat: {
+              ...prev.rightChat,
+              messages: prev.rightChat.messages.map((msg) =>
+                msg.id === rightAssistantMessage.id
+                  ? { ...msg, error: "Daily limit exceeded", isStreaming: false, content: "" }
+                  : msg,
+              ),
+              isLoading: false,
+              // Don't set error in state for rate limits - modal handles it
+              error: null,
+            },
+          }))
+
+          // Handle rate limit error with the rate limit hook
+          const mockHeaders = new Headers({
+            'X-RateLimit-Limit-IP': rateLimitError.headers?.ipLimit?.toString() || '5',
+            'X-RateLimit-Remaining-IP': rateLimitError.headers?.ipRemaining?.toString() || '0',
+            'X-RateLimit-Limit-Prefix': rateLimitError.headers?.prefixLimit?.toString() || '50',
+            'X-RateLimit-Remaining-Prefix': rateLimitError.headers?.prefixRemaining?.toString() || '0',
+          })
+
+          const mockResponse = {
+            status: 429,
+            headers: mockHeaders,
+            json: async () => ({ detail: errorMessage })
+          } as unknown as Response
+
+          await handleRateLimitError(mockResponse)
+        } else {
+          // Log other errors (not rate limit errors)
+          console.error("Failed to send comparison message:", error)
+
+          // Handle other errors
+          setState((prev) => ({
+            ...prev,
+            leftChat: {
+              ...prev.leftChat,
+              messages: prev.leftChat.messages.map((msg) =>
+                msg.id === leftAssistantMessage.id
+                  ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
+                  : msg,
+              ),
+              isLoading: false,
+              error: "Failed to send message. Please try again.",
+            },
+            rightChat: {
+              ...prev.rightChat,
+              messages: prev.rightChat.messages.map((msg) =>
+                msg.id === rightAssistantMessage.id
+                  ? { ...msg, error: "Failed to generate response", isStreaming: false, content: "" }
+                  : msg,
+              ),
+              isLoading: false,
+              error: "Failed to send message. Please try again.",
+            },
+          }))
+        }
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions, rateLimitInfo, resetRateLimit, handleRateLimitError],
   )
 
   const clearChat = useCallback(() => {
@@ -613,10 +681,31 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
     }
   }, [state.sessionId, leftModel, rightModel])
 
+  // Clear error state (used when API key is added after rate limit)
+  const clearError = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      leftChat: {
+        ...prev.leftChat,
+        error: null
+      },
+      rightChat: {
+        ...prev.rightChat,
+        error: null
+      }
+    }))
+  }, [])
+
   return {
     ...state,
     sendMessage,
     clearChat,
     messagesEndRef,
+    // Rate limiting information
+    rateLimitInfo,
+    showUpgradePrompt,
+    dismissUpgradePrompt,
+    resetRateLimit,
+    clearError,
   }
 }

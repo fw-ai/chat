@@ -147,8 +147,15 @@ class FireworksConfig:
 class FireworksStreamer:
     """Helper class for streaming responses from Fireworks"""
 
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+    def __init__(self, api_key: Optional[str] = None):
+        # Use provided API key or fall back to environment variable for free tier
+        import os
+
+        self.api_key = api_key or os.getenv("FIREWORKS_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "No API key provided and FIREWORKS_API_KEY environment variable not set"
+            )
         self.config = FireworksConfig()
         self.base_url = APP_CONFIG["base_url"]
         self.session = None

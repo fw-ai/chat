@@ -21,6 +21,7 @@ from src.services.dependencies import (
     get_comparison_service,
     get_rate_limiter,
     get_models,
+    AppServices,
 )
 from src.logger import logger
 from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
@@ -41,6 +42,16 @@ app.add_middleware(
 )
 
 # Services are now managed through dependency injection
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on app shutdown"""
+    try:
+        services = AppServices.get_instance()
+        await services.cleanup()
+    except Exception as e:
+        logger.error(f"Error during app shutdown: {str(e)}")
 
 
 class ChatMessage(BaseModel):
@@ -142,7 +153,7 @@ async def _stream_response_with_session(
     session_id: str,
     temperature: Optional[float],
     error_context: str,
-    client_api_key: str,
+    client_api_key: Optional[str],
     session_manager: SessionManager,
     function_definitions: Optional[List[Dict[str, Any]]] = None,
 ):
@@ -325,6 +336,27 @@ async def get_session_stats(
     except Exception as e:
         logger.error(f"Error getting session stats: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get session statistics")
+
+
+@app.get("/debug/redis-status")
+async def get_redis_status(
+    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+):
+    """Get Redis connection status for debugging deployment issues"""
+    try:
+        logger.info("Redis status check requested")
+        status = await rate_limiter.get_connection_status()
+        logger.info(f"Redis status retrieved: {status}")
+        return {"redis_status": status}
+    except Exception as e:
+        logger.error(f"Error getting Redis status: {str(e)}")
+        return {
+            "redis_status": {
+                "error": str(e),
+                "connection_healthy": False,
+                "diagnostic_failed": True,
+            }
+        }
 
 
 @app.get("/sessions")

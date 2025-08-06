@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.modules.rate_limiter import DualLayerRateLimiter
 from src.modules.auth import get_optional_api_key, extract_client_ip
+from redis.exceptions import ConnectionError, TimeoutError
 
 
 class TestDualLayerRateLimiter:
@@ -89,8 +90,8 @@ class TestDualLayerRateLimiter:
             assert info.prefix_limit == 50
 
     @pytest.mark.asyncio
-    async def test_redis_failure_fail_open(self):
-        """Test that Redis failures result in fail-open behavior"""
+    async def test_redis_failure_fail_closed(self):
+        """Test that Redis failures result in fail-closed behavior"""
         with patch("redis.asyncio.from_url") as mock_redis:
             mock_client = AsyncMock()
             mock_redis.return_value = mock_client
@@ -103,8 +104,50 @@ class TestDualLayerRateLimiter:
             limiter = DualLayerRateLimiter()
             allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
 
-            assert allowed  # Should fail open
-            assert info.limit_reason == "error_failopen"
+            assert not allowed  # Should fail closed
+            assert info.limit_reason == "error_failclosed"
+
+    @pytest.mark.asyncio
+    async def test_event_loop_error_fail_open(self):
+        """Test that event loop errors result in fail-open behavior"""
+        limiter = DualLayerRateLimiter()
+
+        # Mock the _get_usage_info method to simulate event loop error
+        with patch.object(limiter, "_get_usage_info") as mock_usage:
+            mock_usage.side_effect = RuntimeError("Event loop is closed")
+
+            allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
+
+            assert allowed  # Should fail open for event loop errors
+            assert info.limit_reason == "event_loop_error"
+
+    @pytest.mark.asyncio
+    async def test_redis_connection_error_fail_open(self):
+        """Test that Redis connection errors result in fail-open behavior"""
+        limiter = DualLayerRateLimiter()
+
+        # Mock the _get_usage_info method to simulate connection error
+        with patch.object(limiter, "_get_usage_info") as mock_usage:
+            mock_usage.side_effect = ConnectionError("Connection to Redis failed")
+
+            allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
+
+            assert allowed  # Should fail open for connection errors
+            assert info.limit_reason == "connection_error"
+
+    @pytest.mark.asyncio
+    async def test_redis_timeout_error_fail_open(self):
+        """Test that Redis timeout errors result in fail-open behavior"""
+        limiter = DualLayerRateLimiter()
+
+        # Mock the _get_usage_info method to simulate timeout error
+        with patch.object(limiter, "_get_usage_info") as mock_usage:
+            mock_usage.side_effect = TimeoutError("Redis operation timed out")
+
+            allowed, info = await limiter.check_and_increment_usage("192.168.1.100")
+
+            assert allowed  # Should fail open for timeout errors
+            assert info.limit_reason == "connection_error"
 
     @pytest.mark.asyncio
     async def test_usage_info_without_increment(self):

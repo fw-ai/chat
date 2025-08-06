@@ -1,5 +1,6 @@
 from typing import Dict, Any
 from threading import Lock
+import os
 
 from src.modules.llm_completion import FireworksConfig
 from src.modules.session import SessionManager
@@ -80,8 +81,12 @@ class AppServices:
             logger.info("ComparisonService initialized")
 
             logger.info("Initializing DualLayerRateLimiter...")
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+            logger.info(
+                f"Creating DualLayerRateLimiter with Redis URL ending: {redis_url[-20:] if len(redis_url) > 20 else redis_url}"
+            )
             self._rate_limiter = DualLayerRateLimiter()
-            logger.info("DualLayerRateLimiter initialized")
+            logger.info("DualLayerRateLimiter initialization completed")
 
             self._initialized = True
             logger.info(
@@ -142,6 +147,24 @@ class AppServices:
     def is_initialized(self) -> bool:
         """Check if services are initialized"""
         return self._initialized
+
+    async def cleanup(self):
+        """Cleanup all services and connections"""
+        if self._rate_limiter is not None:
+            try:
+                await self._rate_limiter.close()
+                logger.info("Rate limiter cleaned up successfully")
+            except Exception as e:
+                logger.error(f"Error cleaning up rate limiter: {str(e)}")
+
+        # Reset all services
+        self._config = None
+        self._session_manager = None
+        self._comparison_service = None
+        self._rate_limiter = None
+        self._models = None
+        self._initialized = False
+        logger.info("AppServices cleanup completed")
 
 
 # Dependency functions for FastAPI
