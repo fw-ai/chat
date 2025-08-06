@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Optional, Union, Any
 import ipaddress
 from datetime import datetime
 import os
+import asyncio
 from dataclasses import dataclass
 
 from src.constants.configs import APP_CONFIG
@@ -37,6 +38,7 @@ class DualLayerRateLimiter:
             f"with Redis URL: {self.redis_url[-20:] if len(self.redis_url) > 20 else self.redis_url}"
         )
         self.redis: Optional[redis.Redis] = None
+        self._current_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.IP_LIMIT = APP_CONFIG["rate_limiting"]["individual_ip_limit"]
         self.PREFIX_LIMIT = APP_CONFIG["rate_limiting"]["ip_prefix_limit"]
         self._connection_attempts = 0
@@ -51,6 +53,35 @@ class DualLayerRateLimiter:
         logger.debug(f"Getting Redis connection (attempt #{self._connection_attempts})")
 
         try:
+            # Get current event loop
+            try:
+                current_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                logger.warning(
+                    "No running event loop found - this should not happen in async context"
+                )
+                current_loop = None
+
+            # Check if we're in a different event loop or connection is invalid
+            event_loop_changed = (
+                current_loop is not None
+                and self._current_event_loop is not None
+                and current_loop != self._current_event_loop
+            )
+
+            if event_loop_changed:
+                logger.info("Event loop changed - forcing new Redis connection")
+                if self.redis is not None:
+                    try:
+                        await self.redis.aclose()
+                        logger.debug("Closed Redis connection due to event loop change")
+                    except Exception as close_error:
+                        logger.debug(
+                            f"Error closing connection on event loop change: {str(close_error)}"
+                        )
+                    self.redis = None
+                self._current_event_loop = current_loop
+
             # Check if existing connection is still valid
             if self.redis is not None:
                 try:
@@ -96,6 +127,7 @@ class DualLayerRateLimiter:
             await self.redis.ping()
             connection_time = (datetime.now() - start_time).total_seconds()
             self._last_successful_connection = datetime.now()
+            self._current_event_loop = current_loop
 
             logger.info(
                 f"Redis connection established successfully in {connection_time:.3f}s"
@@ -124,6 +156,7 @@ class DualLayerRateLimiter:
                 logger.warning(f"Error closing Redis connection: {str(e)}")
             finally:
                 self.redis = None
+                self._current_event_loop = None
 
     async def get_connection_status(self) -> Dict[str, Any]:
         """Get diagnostic information about Redis connection status"""
@@ -295,10 +328,24 @@ class DualLayerRateLimiter:
                 limit_reason="connection_error",
             )
         except RuntimeError as e:
-            if "Event loop is closed" in str(e) or "no running event loop" in str(e):
+            if (
+                "Event loop is closed" in str(e)
+                or "no running event loop" in str(e)
+                or "is bound to a different event loop" in str(e)
+            ):
                 logger.error(
                     f"Event loop error in rate limiter for IP {ip}: {str(e)}. FAILING OPEN - allowing request. Last successful connection: {self._last_successful_connection}"
                 )
+                # Force connection reset on next request
+                if self.redis is not None:
+                    try:
+                        await self.redis.aclose()
+                        logger.debug("Closed Redis connection due to event loop error")
+                    except Exception:
+                        pass  # Ignore errors when closing during event loop issues
+                    self.redis = None
+                    self._current_event_loop = None
+
                 # Fail open for event loop issues
                 return True, RateLimitInfo(
                     ip_usage=0,
@@ -356,8 +403,24 @@ class DualLayerRateLimiter:
                 prefix_limit=self.PREFIX_LIMIT,
             )
         except RuntimeError as e:
-            if "Event loop is closed" in str(e) or "no running event loop" in str(e):
+            if (
+                "Event loop is closed" in str(e)
+                or "no running event loop" in str(e)
+                or "is bound to a different event loop" in str(e)
+            ):
                 logger.error(f"Event loop error getting usage info: {str(e)}")
+                # Force connection reset on next request
+                if self.redis is not None:
+                    try:
+                        await self.redis.aclose()
+                        logger.debug(
+                            "Closed Redis connection due to event loop error in get_usage_info"
+                        )
+                    except Exception:
+                        pass  # Ignore errors when closing during event loop issues
+                    self.redis = None
+                    self._current_event_loop = None
+
                 return RateLimitInfo(
                     ip_usage=0,
                     ip_limit=self.IP_LIMIT,
