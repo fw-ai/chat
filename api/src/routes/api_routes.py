@@ -223,6 +223,7 @@ async def _stream_response_with_session(
 async def check_rate_limit_and_auth(
     http_request: Request,
     rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+    comparison_id: Optional[str] = None,
 ) -> str:
     """
     Helper function to check rate limiting and authentication for API endpoints.
@@ -237,6 +238,7 @@ async def check_rate_limit_and_auth(
     Args:
         http_request: FastAPI request object
         rate_limiter: Injected rate limiter dependency
+        comparison_id: Optional comparison ID for side-by-side chats
 
     Returns:
         str: Validated API key
@@ -244,13 +246,15 @@ async def check_rate_limit_and_auth(
     Raises:
         HTTPException: If rate limited (429) or authentication fails (401)
     """
-    # Check for API key first (optional)
     client_api_key = await get_optional_api_key(http_request)
 
     if not client_api_key:
-        await verify_rate_limit(http_request=http_request, rate_limiter=rate_limiter)
+        await verify_rate_limit(
+            http_request=http_request,
+            rate_limiter=rate_limiter,
+            comparison_id=comparison_id,
+        )
     else:
-        # API key provided - validate it (existing behavior)
         client_api_key = await get_validated_api_key(http_request)
 
     return client_api_key
@@ -382,8 +386,6 @@ async def single_chat(
 ):
     """Single model streaming - works for both solo and comparison chats"""
     try:
-        client_api_key = await check_rate_limit_and_auth(http_request, rate_limiter)
-
         # Rest of function remains exactly the same...
         if not validate_model_key(request.model_key, config):
             raise HTTPException(
@@ -398,6 +400,10 @@ async def single_chat(
             session_id = request.conversation_id or generate_session_id()
             session_type = "single"
             primary_id = session_id
+
+        client_api_key = await check_rate_limit_and_auth(
+            http_request, rate_limiter, request.comparison_id
+        )
 
         logger.info(
             f"Chat request - Type: {session_type}, Session: {session_id}, "

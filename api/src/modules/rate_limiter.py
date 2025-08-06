@@ -5,6 +5,8 @@ import ipaddress
 from datetime import datetime
 import os
 from dataclasses import dataclass
+
+from constants.configs import APP_CONFIG
 from src.logger import logger
 from fastapi import HTTPException, Request
 from src.modules.auth import extract_client_ip
@@ -31,11 +33,12 @@ class DualLayerRateLimiter:
     def __init__(self, redis_url: str = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
         logger.info(
-            f"Initializing DualLayerRateLimiter with Redis URL: {self.redis_url[-20:] if len(self.redis_url) > 20 else self.redis_url}"
+            f"Initializing DualLayerRateLimiter "
+            f"with Redis URL: {self.redis_url[-20:] if len(self.redis_url) > 20 else self.redis_url}"
         )
         self.redis: Optional[redis.Redis] = None
-        self.IP_LIMIT = int(os.getenv("RATE_LIMIT_IP", "5"))
-        self.PREFIX_LIMIT = int(os.getenv("RATE_LIMIT_PREFIX", "50"))
+        self.IP_LIMIT = APP_CONFIG["rate_limiting"]["individual_ip_limit"]
+        self.PREFIX_LIMIT = APP_CONFIG["rate_limiting"]["ip_prefix_limit"]
         self._connection_attempts = 0
         self._last_successful_connection = None
         logger.info(
@@ -379,19 +382,28 @@ class DualLayerRateLimiter:
             )
 
 
-async def verify_rate_limit(http_request: Request, rate_limiter: DualLayerRateLimiter):
+async def verify_rate_limit(
+    http_request: Request,
+    rate_limiter: DualLayerRateLimiter,
+    comparison_id: Optional[str] = None,
+):
     """
     Verify rate limit
 
     Args:
         http_request (Request): HTTP request object
         rate_limiter (RateLimiter): Rate limiter instance
+        comparison_id (Optional[str]): Comparison ID for side-by-side chats
 
     Returns:
         HTTPException: HTTPException if rate limit exceeded
     """
     client_ip = extract_client_ip(http_request)
-    allowed, usage_info = await rate_limiter.check_and_increment_usage(client_ip)
+
+    # For comparison requests, use comparison_id to ensure we only count once per user input
+    rate_limit_key = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
+
+    allowed, usage_info = await rate_limiter.check_and_increment_usage(rate_limit_key)
 
     if not allowed:
         if usage_info.limit_reason == "individual_ip":
@@ -417,6 +429,7 @@ async def verify_rate_limit(http_request: Request, rate_limiter: DualLayerRateLi
                 ),
             },
         )
+    rate_limit_type = "comparison" if comparison_id else "single"
     logger.info(
-        f"Rate limit check passed for IP: {client_ip} remaining: {usage_info.ip_remaining}"
+        f"Rate limit check passed for {rate_limit_type} chat - Key: {rate_limit_key}, Remaining: {usage_info.ip_remaining}"
     )
