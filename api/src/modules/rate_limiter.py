@@ -4,7 +4,6 @@ from typing import Tuple, Dict, Optional, Union, Any
 import ipaddress
 from datetime import datetime
 import os
-import asyncio
 from dataclasses import dataclass
 
 from src.constants.configs import APP_CONFIG
@@ -38,7 +37,6 @@ class DualLayerRateLimiter:
             f"with Redis URL: {self.redis_url[-20:] if len(self.redis_url) > 20 else self.redis_url}"
         )
         self.redis: Optional[redis.Redis] = None
-        self._current_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.IP_LIMIT = APP_CONFIG["rate_limiting"]["individual_ip_limit"]
         self.PREFIX_LIMIT = APP_CONFIG["rate_limiting"]["ip_prefix_limit"]
         self._connection_attempts = 0
@@ -48,39 +46,11 @@ class DualLayerRateLimiter:
         )
 
     async def _get_redis(self) -> redis.Redis:
-        """Get Redis connection with proper error handling for closed event loops"""
+        """Get Redis connection with proper error handling"""
         self._connection_attempts += 1
         logger.debug(f"Getting Redis connection (attempt #{self._connection_attempts})")
 
         try:
-            # Get current event loop
-            try:
-                current_loop = asyncio.get_running_loop()
-            except RuntimeError:
-                logger.warning(
-                    "No running event loop found - this should not happen in async context"
-                )
-                current_loop = None
-
-            # Check if we're in a different event loop or connection is invalid
-            event_loop_changed = (
-                current_loop is not None
-                and self._current_event_loop is not None
-                and current_loop != self._current_event_loop
-            )
-
-            if event_loop_changed:
-                logger.info("Event loop changed - forcing new Redis connection")
-                if self.redis is not None:
-                    try:
-                        await self.redis.aclose()
-                        logger.debug("Closed Redis connection due to event loop change")
-                    except Exception as close_error:
-                        logger.debug(
-                            f"Error closing connection on event loop change: {str(close_error)}"
-                        )
-                    self.redis = None
-                self._current_event_loop = current_loop
 
             # Check if existing connection is still valid
             if self.redis is not None:
@@ -127,7 +97,6 @@ class DualLayerRateLimiter:
             await self.redis.ping()
             connection_time = (datetime.now() - start_time).total_seconds()
             self._last_successful_connection = datetime.now()
-            self._current_event_loop = current_loop
 
             logger.info(
                 f"Redis connection established successfully in {connection_time:.3f}s"
@@ -156,7 +125,6 @@ class DualLayerRateLimiter:
                 logger.warning(f"Error closing Redis connection: {str(e)}")
             finally:
                 self.redis = None
-                self._current_event_loop = None
 
     async def get_connection_status(self) -> Dict[str, Any]:
         """Get diagnostic information about Redis connection status"""
@@ -246,16 +214,39 @@ class DualLayerRateLimiter:
             # Fallback for invalid IPs - just truncate
             return ip[:10]
 
-    async def check_and_increment_usage(self, ip: str) -> Tuple[bool, RateLimitInfo]:
+    async def check_and_increment_usage(
+        self, ip: str, comparison_id: Optional[str] = None
+    ) -> Tuple[bool, RateLimitInfo]:
         """
         Check both IP and prefix limits, increment if allowed
+        For comparison requests, only increment once per comparison_id
 
         Returns:
             (allowed: bool, rate_limit_info: RateLimitInfo)
         """
-        logger.debug(f"Rate limit check for IP: {ip}")
+        logger.debug(f"Rate limit check for IP: {ip}, comparison_id: {comparison_id}")
         try:
             redis_client = await self._get_redis()
+
+            # For comparison requests, check if we've already counted this comparison
+            if comparison_id:
+                comparison_key = f"comparison_counted:{comparison_id}"
+                already_counted = await redis_client.get(comparison_key)
+                if already_counted:
+                    logger.debug(
+                        f"Comparison {comparison_id} already counted - returning current usage without incrementing"
+                    )
+                    # Get current usage without incrementing
+                    usage_info = await self._get_usage_info(
+                        ip=ip, redis_client=redis_client
+                    )
+                    return True, RateLimitInfo(
+                        ip_usage=usage_info["ip_usage"],
+                        ip_limit=self.IP_LIMIT,
+                        prefix_usage=usage_info["prefix_usage"],
+                        prefix_limit=self.PREFIX_LIMIT,
+                    )
+
             usage_info = await self._get_usage_info(ip=ip, redis_client=redis_client)
             logger.debug(
                 f"Retrieved usage info for IP {ip}: IP usage={usage_info['ip_usage']}, Prefix usage={usage_info['prefix_usage']}"
@@ -298,6 +289,14 @@ class DualLayerRateLimiter:
             pipe.incr(prefix_key)
             pipe.expire(prefix_key, 86400)  # 24 hours in seconds
 
+            # For comparison requests, mark this comparison as counted
+            if comparison_id:
+                comparison_key = f"comparison_counted:{comparison_id}"
+                pipe.set(comparison_key, "1")
+                pipe.expire(
+                    comparison_key, 300
+                )  # 5 minutes - should be enough for comparison requests
+
             logger.debug(f"Executing Redis pipeline to increment usage for IP {ip}")
             start_time = datetime.now()
             await pipe.execute()
@@ -328,44 +327,17 @@ class DualLayerRateLimiter:
                 limit_reason="connection_error",
             )
         except RuntimeError as e:
-            if (
-                "Event loop is closed" in str(e)
-                or "no running event loop" in str(e)
-                or "is bound to a different event loop" in str(e)
-            ):
-                logger.error(
-                    f"Event loop error in rate limiter for IP {ip}: {str(e)}. FAILING OPEN - allowing request. Last successful connection: {self._last_successful_connection}"
-                )
-                # Force connection reset on next request
-                if self.redis is not None:
-                    try:
-                        await self.redis.aclose()
-                        logger.debug("Closed Redis connection due to event loop error")
-                    except Exception:
-                        pass  # Ignore errors when closing during event loop issues
-                    self.redis = None
-                    self._current_event_loop = None
-
-                # Fail open for event loop issues
-                return True, RateLimitInfo(
-                    ip_usage=0,
-                    ip_limit=self.IP_LIMIT,
-                    prefix_usage=0,
-                    prefix_limit=self.PREFIX_LIMIT,
-                    limit_reason="event_loop_error",
-                )
-            else:
-                logger.critical(
-                    f"RATE_LIMITER_FAILURE for IP {ip}: {str(e)}. FAILING CLOSED - denying request."
-                )
-                # Fail closed for other runtime errors
-                return False, RateLimitInfo(
-                    ip_usage=0,
-                    ip_limit=self.IP_LIMIT,
-                    prefix_usage=0,
-                    prefix_limit=self.PREFIX_LIMIT,
-                    limit_reason="error_failclosed",
-                )
+            logger.critical(
+                f"RATE_LIMITER_FAILURE for IP {ip}: {str(e)}. FAILING CLOSED - denying request."
+            )
+            # Fail closed for runtime errors
+            return False, RateLimitInfo(
+                ip_usage=0,
+                ip_limit=self.IP_LIMIT,
+                prefix_usage=0,
+                prefix_limit=self.PREFIX_LIMIT,
+                limit_reason="error_failclosed",
+            )
         except Exception as e:
             logger.critical(
                 f"RATE_LIMITER_FAILURE for IP {ip}: {str(e)}. FAILING CLOSED - denying request. Connection attempts: {self._connection_attempts}"
@@ -403,38 +375,13 @@ class DualLayerRateLimiter:
                 prefix_limit=self.PREFIX_LIMIT,
             )
         except RuntimeError as e:
-            if (
-                "Event loop is closed" in str(e)
-                or "no running event loop" in str(e)
-                or "is bound to a different event loop" in str(e)
-            ):
-                logger.error(f"Event loop error getting usage info: {str(e)}")
-                # Force connection reset on next request
-                if self.redis is not None:
-                    try:
-                        await self.redis.aclose()
-                        logger.debug(
-                            "Closed Redis connection due to event loop error in get_usage_info"
-                        )
-                    except Exception:
-                        pass  # Ignore errors when closing during event loop issues
-                    self.redis = None
-                    self._current_event_loop = None
-
-                return RateLimitInfo(
-                    ip_usage=0,
-                    ip_limit=self.IP_LIMIT,
-                    prefix_usage=0,
-                    prefix_limit=self.PREFIX_LIMIT,
-                )
-            else:
-                logger.error(f"Runtime error getting usage info: {str(e)}")
-                return RateLimitInfo(
-                    ip_usage=0,
-                    ip_limit=self.IP_LIMIT,
-                    prefix_usage=0,
-                    prefix_limit=self.PREFIX_LIMIT,
-                )
+            logger.error(f"Runtime error getting usage info: {str(e)}")
+            return RateLimitInfo(
+                ip_usage=0,
+                ip_limit=self.IP_LIMIT,
+                prefix_usage=0,
+                prefix_limit=self.PREFIX_LIMIT,
+            )
         except Exception as e:
             logger.error(f"Error getting usage info: {str(e)}")
             return RateLimitInfo(
@@ -463,10 +410,13 @@ async def verify_rate_limit(
     """
     client_ip = extract_client_ip(http_request)
 
-    # For comparison requests, use comparison_id to ensure we only count once per user input
-    rate_limit_key = f"{client_ip}:{comparison_id}" if comparison_id else client_ip
+    # For comparison requests, we use the IP as the key but pass comparison_id for deduplication
+    # For single requests, just use the IP
+    rate_limit_key = client_ip
 
-    allowed, usage_info = await rate_limiter.check_and_increment_usage(rate_limit_key)
+    allowed, usage_info = await rate_limiter.check_and_increment_usage(
+        rate_limit_key, comparison_id
+    )
 
     if not allowed:
         if usage_info.limit_reason == "individual_ip":
@@ -494,5 +444,5 @@ async def verify_rate_limit(
         )
     rate_limit_type = "comparison" if comparison_id else "single"
     logger.info(
-        f"Rate limit check passed for {rate_limit_type} chat - Key: {rate_limit_key}, Remaining: {usage_info.ip_remaining}"
+        f"Rate limit check passed for {rate_limit_type} chat - IP: {rate_limit_key}, Comparison ID: {comparison_id or 'N/A'}, Remaining: {usage_info.ip_remaining}"
     )
