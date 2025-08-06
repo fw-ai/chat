@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 from dataclasses import dataclass
 
-from constants.configs import APP_CONFIG
+from src.constants.configs import APP_CONFIG
 from src.logger import logger
 from fastapi import HTTPException, Request
 from src.modules.auth import extract_client_ip
