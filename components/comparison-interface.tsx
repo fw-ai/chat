@@ -81,89 +81,135 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
 
 
 
-      {/* Two column layout */}
-      <div className="flex-1 flex" style={{ width: '100%', maxWidth: '100%' }}>
-        {/* Left Column */}
-        <div className="w-1/2 min-w-0 flex flex-col border-r" style={{ width: '50%', maxWidth: '50%', minWidth: '0' }}>
-          {/* Left model selector */}
-          <div className="p-4 border-b bg-muted/30">
-            <ModelSelector
-              selectedModel={leftModel}
-              onModelChange={setLeftModel}
-              className="w-full"
-              disabled={false} // No longer disable based on API key
-              apiKey={apiKey}
-              functionCallingEnabled={functionCallingEnabled}
-            />
+      {/* Model selectors row */}
+      <div className="flex border-b">
+        <div className="w-1/2 p-4 border-r bg-muted/30">
+          <ModelSelector
+            selectedModel={leftModel}
+            onModelChange={setLeftModel}
+            className="w-full"
+            disabled={false}
+            apiKey={apiKey}
+            functionCallingEnabled={functionCallingEnabled}
+          />
+        </div>
+        <div className="w-1/2 p-4 bg-muted/30">
+          <ModelSelector
+            selectedModel={rightModel}
+            onModelChange={setRightModel}
+            className="w-full"
+            disabled={false}
+            apiKey={apiKey}
+            functionCallingEnabled={functionCallingEnabled}
+          />
+        </div>
+      </div>
+
+      {/* Synchronized messages area */}
+      <div className="flex-1 overflow-y-auto">
+        {comparisonChat.leftChat.messages.length === 0 && comparisonChat.rightChat.messages.length === 0 ? (
+          <div className="flex h-full">
+            <div className="w-1/2 flex items-center justify-center border-r text-muted-foreground">
+              <div className="text-center">
+                <p className="text-sm mb-1">Responses from</p>
+                <p className="font-medium">{leftModel?.name || 'Model 1'}</p>
+              </div>
+            </div>
+            <div className="w-1/2 flex items-center justify-center text-muted-foreground">
+              <div className="text-center">
+                <p className="text-sm mb-1">Responses from</p>
+                <p className="font-medium">{rightModel?.name || 'Model 2'}</p>
+              </div>
+            </div>
           </div>
+        ) : (
+          <div className="space-y-0">
+            {(() => {
+              // Group messages by pairs (user message + assistant responses)
+              const messageGroups = []
+              const maxLength = Math.max(comparisonChat.leftChat.messages.length, comparisonChat.rightChat.messages.length)
 
+              for (let i = 0; i < maxLength; i += 2) {
+                const leftUserMsg = comparisonChat.leftChat.messages[i]
+                const leftAssistantMsg = comparisonChat.leftChat.messages[i + 1]
+                const rightUserMsg = comparisonChat.rightChat.messages[i]
+                const rightAssistantMsg = comparisonChat.rightChat.messages[i + 1]
 
-          {/* Left chat area */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxWidth: '100%', minWidth: '0' }}>
-              {comparisonChat.leftChat.messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  <div className="text-center">
-                    <p className="text-sm mb-1">Responses from</p>
-                    <p className="font-medium">{leftModel?.name || 'Model 1'}</p>
+                messageGroups.push({
+                  userMessage: leftUserMsg || rightUserMsg, // They should be the same
+                  leftAssistant: leftAssistantMsg,
+                  rightAssistant: rightAssistantMsg
+                })
+              }
+
+              return messageGroups.map((group, groupIndex) => (
+                <div key={group.userMessage?.id || groupIndex} className="border-b border-muted/30">
+                  {/* User message - spans full width */}
+                  {group.userMessage && (
+                    <div className="bg-muted/30 px-4 py-2">
+                      <div className="flex justify-end">
+                        <div className="max-w-[80%] space-y-2">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {group.userMessage.timestamp.toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div className="prose prose-sm max-w-none bg-fireworks-purple text-white p-3 rounded-lg">
+                            <div className="whitespace-pre-wrap text-white">
+                              {group.userMessage.content}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Assistant responses - side by side */}
+                  <div className="flex min-h-[4rem]">
+                    {/* Left model response */}
+                    <div className="w-1/2 border-r" style={{ minWidth: '0' }}>
+                      {group.leftAssistant ? (
+                        <MessageComponent key={group.leftAssistant.id} message={group.leftAssistant} />
+                      ) : (
+                        <div className="p-4 flex items-center justify-center text-muted-foreground">
+                          <div className="text-sm">No response</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right model response */}
+                    <div className="w-1/2" style={{ minWidth: '0' }}>
+                      {group.rightAssistant ? (
+                        <MessageComponent key={group.rightAssistant.id} message={group.rightAssistant} />
+                      ) : (
+                        <div className="p-4 flex items-center justify-center text-muted-foreground">
+                          <div className="text-sm">No response</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-0">
-                  {comparisonChat.leftChat.messages.map((message) => (
-                    <MessageComponent key={message.id} message={message} />
-                  ))}
-                  <div ref={comparisonChat.messagesEndRef} />
-                </div>
-              )}
-            </div>
+              ))
+            })()}
+            <div ref={comparisonChat.messagesEndRef} />
+          </div>
+        )}
 
-            {comparisonChat.leftChat.error && !rateLimitInfo?.isRateLimited && (
-              <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{comparisonChat.leftChat.error}</div>
+        {/* Error messages */}
+        {(comparisonChat.leftChat.error || comparisonChat.rightChat.error) && !rateLimitInfo?.isRateLimited && (
+          <div className="flex">
+            {comparisonChat.leftChat.error && (
+              <div className="w-1/2 p-4 bg-destructive/10 text-destructive text-sm border-t border-r">
+                {comparisonChat.leftChat.error}
+              </div>
+            )}
+            {comparisonChat.rightChat.error && (
+              <div className="w-1/2 p-4 bg-destructive/10 text-destructive text-sm border-t">
+                {comparisonChat.rightChat.error}
+              </div>
             )}
           </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="w-1/2 min-w-0 flex flex-col" style={{ width: '50%', maxWidth: '50%', minWidth: '0' }}>
-          {/* Right model selector */}
-          <div className="p-4 border-b bg-muted/30">
-            <ModelSelector
-              selectedModel={rightModel}
-              onModelChange={setRightModel}
-              className="w-full"
-              disabled={false} // No longer disable based on API key
-              apiKey={apiKey}
-              functionCallingEnabled={functionCallingEnabled}
-            />
-          </div>
-
-
-          {/* Right chat area */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxWidth: '100%', minWidth: '0' }}>
-              {comparisonChat.rightChat.messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  <div className="text-center">
-                    <p className="text-sm mb-1">Responses from</p>
-                    <p className="font-medium">{rightModel?.name || 'Model 2'}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-0">
-                  {comparisonChat.rightChat.messages.map((message) => (
-                    <MessageComponent key={message.id} message={message} />
-                  ))}
-                  <div ref={comparisonChat.messagesEndRef} />
-                </div>
-              )}
-            </div>
-
-            {comparisonChat.rightChat.error && !rateLimitInfo?.isRateLimited && (
-              <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{comparisonChat.rightChat.error}</div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
 
