@@ -291,6 +291,26 @@ export class ApiClient {
     return response.body
   }
 
+  // NEW: Count message for rate limiting
+  async countMessage(apiKey?: string): Promise<{ allowed: boolean; remaining: number | string; message: string }> {
+    try {
+      const response = await fetch(`${this.baseURL}/api/count-message`, {
+        method: "POST",
+        headers: this.getHeaders(apiKey),
+      })
+
+      if (!response.ok) {
+        console.error("Count message failed:", response.status, response.statusText)
+        await this.handleHttpError(response)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error("Count message request failed:", error)
+      throw error
+    }
+  }
+
   // NEW: Stream live metrics
   async streamMetrics(request: MetricsRequest): Promise<ReadableStream<Uint8Array>> {
     const backendRequest: BackendMetricsRequest = {
