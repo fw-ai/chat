@@ -41,6 +41,12 @@ models:
     display_name: "DeepSeek R1 (05/28)"
     function_calling: true
 
+  deepseek_v3:
+    id: "accounts/fireworks/models/deepseek-v3"
+    name: "DeepSeek V3"
+    display_name: "DeepSeek V3"
+    function_calling: true
+
   deepseek_r1:
     id: "accounts/fireworks/models/deepseek-r1"
     name: "DeepSeek R1"
