@@ -257,27 +257,8 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         sessionId: state.sessionId,
       }
 
-      setState((prev) => ({
-        ...prev,
-        leftChat: {
-          ...prev.leftChat,
-          messages: [...prev.leftChat.messages, userMessage, leftAssistantMessage],
-          isLoading: true,
-          error: null,
-        },
-        rightChat: {
-          ...prev.rightChat,
-          messages: [...prev.rightChat.messages, userMessage, rightAssistantMessage],
-          isLoading: true,
-          error: null,
-        },
-        speedTestError: undefined,
-      }))
-
       try {
-        // NEW ARCHITECTURE: 3-step flow
-
-        // Step 1: Initialize comparison session
+        // Step 1: Initialize comparison session first (before updating UI state)
         const messages = [{
           role: userMessage.role,
           content: userMessage.content
@@ -289,6 +270,24 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           function_definitions: functionDefinitions,
           apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
         })
+
+        // Step 2: If initialization succeeds, update UI state
+        setState((prev) => ({
+          ...prev,
+          leftChat: {
+            ...prev.leftChat,
+            messages: [...prev.leftChat.messages, userMessage, leftAssistantMessage],
+            isLoading: true,
+            error: null,
+          },
+          rightChat: {
+            ...prev.rightChat,
+            messages: [...prev.rightChat.messages, userMessage, rightAssistantMessage],
+            isLoading: true,
+            error: null,
+          },
+          speedTestError: undefined,
+        }))
 
         // Update state with comparison ID
         setState(prev => ({
