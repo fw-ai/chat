@@ -13,7 +13,7 @@ from src.modules.auth import (
     get_api_key_safe_for_logging,
     get_optional_api_key,
 )
-from src.modules.rate_limiter import DualLayerRateLimiter, verify_rate_limit
+from src.modules.rate_limiter import DualLayerRateLimiter, count_message_with_rate_limit
 from src.services.comparison_service import ComparisonService, MetricsStreamer
 from src.services.dependencies import (
     get_config,
@@ -220,40 +220,22 @@ async def _stream_response_with_session(
         yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
 
-async def check_rate_limit_and_auth(
-    http_request: Request,
-    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
-    comparison_id: Optional[str] = None,
-) -> str:
+async def check_auth_only(http_request: Request) -> Optional[str]:
     """
-    Helper function to check rate limiting and authentication for API endpoints.
-
-    This function:
-    1. Checks for optional API key
-    2. If no API key, applies rate limiting
-    3. If rate limit exceeded, raises HTTPException with appropriate headers
-    4. If API key present, validates it
-    5. Returns the validated API key
+    Check authentication only - rate limiting handled separately by /api/count-message
 
     Args:
         http_request: FastAPI request object
-        rate_limiter: Injected rate limiter dependency
-        comparison_id: Optional comparison ID for side-by-side chats
 
     Returns:
-        str: Validated API key
+        Optional[str]: Validated API key or None if no API key provided
 
     Raises:
-        HTTPException: If rate limited (429) or authentication fails (401)
+        HTTPException: If authentication fails (401)
     """
     client_api_key = await get_optional_api_key(http_request)
 
-    if not client_api_key:
-        await verify_rate_limit(
-            request=http_request,
-            rate_limiter=rate_limiter,
-        )
-    else:
+    if client_api_key:
         client_api_key = await get_validated_api_key(http_request)
 
     return client_api_key
@@ -341,6 +323,34 @@ async def get_session_stats(
         raise HTTPException(status_code=500, detail="Failed to get session statistics")
 
 
+@app.post("/api/count-message")
+async def count_message(
+    request: Request,
+    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
+):
+    """Count one user message before chat - prevents race conditions"""
+    try:
+        # Check if user has API key
+        client_api_key = await get_optional_api_key(request)
+
+        if client_api_key:
+            # API key users have unlimited access
+            return {
+                "allowed": True,
+                "remaining": "unlimited",
+                "message": "API key user - unlimited access",
+            }
+
+        # No API key - use centralized rate limiting logic
+        return await count_message_with_rate_limit(request, rate_limiter)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in count-message endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail="Message counting failed")
+
+
 @app.get("/debug/redis-status")
 async def get_redis_status(
     rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
@@ -381,7 +391,6 @@ async def single_chat(
     http_request: Request,
     config: Annotated[FireworksConfig, Depends(get_config)],
     session_manager: Annotated[SessionManager, Depends(get_session_manager)],
-    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
 ):
     """Single model streaming - works for both solo and comparison chats"""
     try:
@@ -400,10 +409,8 @@ async def single_chat(
             session_type = "single"
             primary_id = session_id
 
-        # SIMPLIFIED: Always apply rate limiting to test modal
-        client_api_key = await check_rate_limit_and_auth(
-            http_request, rate_limiter, None
-        )
+        # Check authentication only (rate limiting handled by /api/count-message)
+        client_api_key = await check_auth_only(http_request)
 
         logger.info(
             f"Chat request - Type: {session_type}, Session: {session_id}, "
@@ -546,12 +553,11 @@ async def init_comparison(
     http_request: Request,
     config: Annotated[FireworksConfig, Depends(get_config)],
     comparison_service: Annotated[ComparisonService, Depends(get_comparison_service)],
-    rate_limiter: Annotated[DualLayerRateLimiter, Depends(get_rate_limiter)],
 ):
     """Initialize a comparison session - lightweight coordination only"""
     try:
-        # Apply rate limiting and authentication
-        await check_rate_limit_and_auth(http_request, rate_limiter)
+        # Check authentication only (rate limiting handled by /api/count-message)
+        await check_auth_only(http_request)
 
         # Validate all model keys
         for model_key in request.model_keys:

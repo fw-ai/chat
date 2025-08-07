@@ -97,7 +97,7 @@ defaults:
 base_url: https://api.fireworks.ai/inference/v1
 
 rate_limiting:
-  individual_ip_limit: 10
+  individual_ip_limit: 5
   ip_prefix_limit: 50
   redis_url: ${REDIS_URL:-redis://localhost:6379}
   daily_reset: true
