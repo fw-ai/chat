@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_TEMPERATURE = APP_CONFIG["defaults"]["temperature"]
+_MAX_TOKENS = 16384
 
 
 @dataclass
@@ -233,6 +234,7 @@ class FireworksStreamer:
             "model": model_config["id"],
             "temperature": temperature,
             "stream": True,
+            "max_tokens": _MAX_TOKENS,
         }
 
         if function_definitions and len(function_definitions) > 0:
