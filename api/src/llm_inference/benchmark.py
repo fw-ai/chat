@@ -3,7 +3,7 @@ import json
 import asyncio
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 from dataclasses import dataclass, asdict
-from src.modules.llm_completion import (
+from src.llm_inference.llm_completion import (
     FireworksBenchmark,
     FireworksConfig,
     DEFAULT_TEMPERATURE,

@@ -1,7 +1,7 @@
 import asyncio
 from typing import Dict, List, AsyncGenerator, Any
 
-from src.modules.benchmark import FireworksBenchmarkService
+from llm_inference.benchmark import FireworksBenchmarkService
 from src.modules.session import SessionManager
 from src.logger import logger
 

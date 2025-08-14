@@ -2,7 +2,7 @@ from typing import Dict, Any
 from threading import Lock
 import os
 
-from src.modules.llm_completion import FireworksConfig
+from llm_inference.llm_completion import FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.rate_limiter import DualLayerRateLimiter
 from src.services.comparison_service import ComparisonService

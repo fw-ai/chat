@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple, List
 from dataclasses import dataclass
 from src.logger import logger
 from src.constants.configs import APP_CONFIG
-from src.modules.utils import add_user_request_to_prompt
+from src.llm_inference.utils import add_user_request_to_prompt
 from dotenv import load_dotenv
 
 load_dotenv()

@@ -1,4 +1,4 @@
-from modules.benchmark import BenchmarkResult
+from llm_inference.benchmark import BenchmarkResult
 
 
 def test_rps_calculation():

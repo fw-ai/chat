@@ -1,7 +1,7 @@
 import pytest
 import os
 from unittest.mock import patch
-from src.modules.llm_completion import FireworksStreamer, StreamingStats
+from src.llm_inference.llm_completion import FireworksStreamer, StreamingStats
 from dotenv import load_dotenv
 
 load_dotenv()

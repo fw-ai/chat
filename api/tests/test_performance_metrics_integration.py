@@ -1,6 +1,6 @@
 import pytest
 import os
-from src.modules.llm_completion import FireworksStreamer
+from src.llm_inference.llm_completion import FireworksStreamer
 from dotenv import load_dotenv
 
 load_dotenv()

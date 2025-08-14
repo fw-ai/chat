@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from modules.benchmark import FireworksBenchmarkService
-from modules.llm_completion import FireworksStreamer
+from llm_inference.benchmark import FireworksBenchmarkService
+from llm_inference.llm_completion import FireworksStreamer
 
 
 class SpeedTestComparisonRequest(BaseModel):

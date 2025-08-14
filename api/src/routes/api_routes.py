@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import json
 import uuid
 
-from src.modules.llm_completion import FireworksStreamer, FireworksConfig
+from src.llm_inference.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.auth import (
     get_validated_api_key,
@@ -24,8 +24,11 @@ from src.services.dependencies import (
     AppServices,
 )
 from src.logger import logger
-from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
-from src.modules.llm_completion import DEFAULT_TEMPERATURE
+from src.llm_inference.utils import (
+    add_function_calling_to_prompt,
+    add_user_request_to_prompt,
+)
+from src.llm_inference.llm_completion import DEFAULT_TEMPERATURE
 
 app = FastAPI(
     title="Fireworks Chat & Benchmark API",
