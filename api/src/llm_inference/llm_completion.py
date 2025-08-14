@@ -5,7 +5,7 @@ import aiohttp
 from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple, List
 from dataclasses import dataclass
 from src.logger import logger
-from src.constants.configs import APP_CONFIG
+from src.constants.configs import APP_CONFIG, get_marketing_config
 from src.llm_inference.utils import add_user_request_to_prompt
 from dotenv import load_dotenv
 
@@ -137,7 +137,7 @@ class FireworksConfig:
 
     def get_all_models(self) -> Dict[str, Dict[str, Any]]:
         """Get all available models"""
-        return self.config["models"]
+        return get_marketing_config()
 
     def get_defaults(self) -> Dict[str, Any]:
         """Get default settings"""

@@ -21,7 +21,6 @@ from src.services.dependencies import (
     get_comparison_service,
     get_rate_limiter,
     get_models,
-    AppServices,
 )
 from src.logger import logger
 from src.llm_inference.utils import (
@@ -43,18 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Services are now managed through dependency injection
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup resources on app shutdown"""
-    try:
-        services = AppServices.get_instance()
-        await services.cleanup()
-    except Exception as e:
-        logger.error(f"Error during app shutdown: {str(e)}")
 
 
 class ChatMessage(BaseModel):

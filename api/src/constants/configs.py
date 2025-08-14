@@ -1,4 +1,7 @@
+from functools import lru_cache
 from pathlib import Path
+
+import requests
 import yaml
 import sys
 from src.logger import logger
@@ -63,3 +66,34 @@ except Exception as e:
     logger.info(f"File location: {Path(__file__)}")
     logger.info(f"Python path: {sys.path}")
     raise
+
+
+_SUPPORTED_MODELS = [v["id"] for _, v in APP_CONFIG["models"].items()]
+
+
+@lru_cache
+def get_marketing_config():
+    try:
+        response = requests.get(APP_CONFIG["marketing_url"], timeout=10)
+        response.raise_for_status()
+        full_urls = response.json()
+    except (requests.RequestException, ValueError):
+        return {}
+
+    cleaned_urls = {}
+    for val in full_urls:
+        if val.get("id") in _SUPPORTED_MODELS:
+            provider = val.get("provider", {})
+            org = provider.get("org", {})
+            logos = org.get("logos", {})
+
+            cleaned_urls[val["id"]] = {
+                "title": val.get("title"),
+                "link": val.get("link"),
+                "supportsTools": val.get("supportsTools", False),
+                "contextLength": val.get("contextLength", 0),
+                "logomark": logos.get("logomark", {}).get("src"),
+                "combomark": logos.get("combomark", {}).get("src"),
+            }
+
+    return cleaned_urls

@@ -167,7 +167,6 @@ class AppServices:
         logger.info("AppServices cleanup completed")
 
 
-# Dependency functions for FastAPI
 def get_app_services() -> AppServices:
     """FastAPI dependency to get AppServices singleton"""
     try:
