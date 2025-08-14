@@ -1,75 +1,45 @@
 models:
   kimi_k2:
-    id: "accounts/fireworks/models/kimi-k2-instruct"
-    name: "Kimi K2"
-    display_name: "Kimi K2 (Moonshot AI)"
-    function_calling: true
+    id: "kimi-k2-instruct"
 
   gpt_oss_120b:
-    id: "accounts/fireworks/models/gpt-oss-120b"
-    name: "GPT OSS 120B"
-    display_name: "GPT OSS 120B (OpenAI)"
-    function_calling: true
+    id: "gpt-oss-120b"
 
   gpt_oss_20b:
-    id: "accounts/fireworks/models/gpt-oss-20b"
-    name: "GPT OSS 20B"
-    display_name: "GPT OSS 20B (OpenAI)"
-    function_calling: true
+    id: "gpt-oss-20b"
 
   qwen3_coder:
-    id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"
-    name: "Qwen3 Coder 480B"
-    display_name: "Qwen3 Coder 480B"
-    function_calling: true
+    id: "qwen3-coder-480b-a35b-instruct"
 
   qwen3_235b_2507:
-    id: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
-    name: "Qwen3 235B 2507"
-    display_name: "Qwen3 235B 2507"
-    function_calling: true
+    id: "qwen3-235b-a22b-instruct-2507"
 
   qwen3_235b_2507_thinking:
-    id: "accounts/fireworks/models/qwen3-235b-a22b-thinking-2507"
-    name: "Qwen3 235B"
-    display_name: "Qwen3 235B (Thinking)"
-    function_calling: true
+    id: "qwen3-235b-a22b-thinking-2507"
 
   deepseek_r1_05_28:
-    id: "accounts/fireworks/models/deepseek-r1-0528"
-    name: "DeepSeek R1"
-    display_name: "DeepSeek R1 (05/28)"
-    function_calling: true
+    id: "deepseek-r1-0528"
 
   deepseek_v3:
-    id: "accounts/fireworks/models/deepseek-v3"
-    name: "DeepSeek V3"
-    display_name: "DeepSeek V3"
-    function_calling: true
+    id: "deepseek-v3"
 
   deepseek_r1:
-    id: "accounts/fireworks/models/deepseek-r1"
-    name: "DeepSeek R1"
-    display_name: "DeepSeek R1"
-    function_calling: false
+    id: "deepseek-r1"
+
+  glm_4p5:
+    id: "glm-4p5"
+
+  glm_4p5_air:
+    id: "glm-4p5-air"
 
   llama_scout:
-    id: "accounts/fireworks/models/llama4-scout-instruct-basic"
-    name: "Llama Scout"
-    display_name: "Llama 4 Scout"
-    function_calling: true
+    id: "llama4-scout-instruct-basic"
 
   llama_maverick:
-    id: "accounts/fireworks/models/llama4-maverick-instruct-basic"
-    name: "Llama Maverick"
-    display_name: "Llama 4 Maverick"
-    function_calling: true
+    id: "llama4-maverick-instruct-basic"
 
   llama_70b:
-    id: "accounts/fireworks/models/llama-v3p3-70b-instruct"
-    name: "Llama 3.3 70B"
-    display_name: "Llama 3.3 70B"
-    function_calling: false
+    id: "llama-v3p1-70b-instruct"
 
 defaults:
   temperature: 0.1
