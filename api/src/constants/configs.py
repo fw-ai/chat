@@ -1,6 +1,7 @@
 from pathlib import Path
 import yaml
 import sys
+from src.logger import logger
 
 
 def _find_config_path():
@@ -40,12 +41,12 @@ def _load_config(config_dir, filename):
     """Load a config file with error handling"""
     try:
         config_path = config_dir / filename
-        print(f"Loading config from: {config_path}")
+        logger.info(f"Loading config from: {config_path}")
         with open(config_path, "r") as f:
             return yaml.safe_load(f)
     except Exception as e:
-        print(f"Error loading {filename}: {e}")
-        print(
+        logger.info(f"Error loading {filename}: {e}")
+        logger.info(
             f"Config directory contents: {list(config_dir.iterdir()) if config_dir.exists() else 'Directory does not exist'}"
         )
         raise
@@ -53,12 +54,12 @@ def _load_config(config_dir, filename):
 
 try:
     _CONFIG_DIR = _find_config_path()
-    print(f"Found config directory: {_CONFIG_DIR}")
+    logger.info(f"Found config directory: {_CONFIG_DIR}")
     APP_CONFIG = _load_config(_CONFIG_DIR, "config.yaml")
     PROMPT_LIBRARY = _load_config(_CONFIG_DIR, "prompt_library.yaml")
 except Exception as e:
-    print(f"Critical error loading configuration: {e}")
-    print(f"Current working directory: {Path.cwd()}")
-    print(f"File location: {Path(__file__)}")
-    print(f"Python path: {sys.path}")
+    logger.info(f"Critical error loading configuration: {e}")
+    logger.info(f"Current working directory: {Path.cwd()}")
+    logger.info(f"File location: {Path(__file__)}")
+    logger.info(f"Python path: {sys.path}")
     raise
