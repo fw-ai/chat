@@ -47,7 +47,7 @@ defaults:
   timeout: 70
 
 base_url: https://api.fireworks.ai/inference/v1
-marketing_url: https://app.fireworks.ai/api/models
+web_app_model_library_url: https://app.fireworks.ai/api/models
 
 rate_limiting:
   individual_ip_limit: 5

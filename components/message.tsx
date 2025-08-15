@@ -53,7 +53,7 @@ export function MessageComponent({ message, showModel = false, model }: MessageP
       <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
         {model && (model as any).logomark ? (
           <img
-            src={`https://app.fireworks.ai${(model as any).logomark}`}
+            src={`${process.env.NEXT_PUBLIC_FIREWORKS_APP_URL}${(model as any).logomark}`}
             alt={`${model.name} logo`}
             className="w-4 h-4 object-contain"
           />

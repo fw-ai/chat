@@ -5,7 +5,7 @@ import aiohttp
 from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple, List
 from dataclasses import dataclass
 from src.logger import logger
-from src.constants.configs import APP_CONFIG, MARKETING_CONFIG
+from src.constants.configs import APP_CONFIG, WEB_APP_MODEL_URL
 from src.llm_inference.utils import add_user_request_to_prompt
 from dotenv import load_dotenv
 
@@ -132,13 +132,13 @@ class FireworksConfig:
     def get_model(self, model_id: str) -> Dict[str, Any]:
         """Get model configuration by model ID"""
         logger.info(f"get_model called with: {model_id}")
-        logger.info(f"MARKETING_CONFIG keys: {list(MARKETING_CONFIG.keys())}")
+        logger.info(f"MARKETING_CONFIG keys: {list(WEB_APP_MODEL_URL.keys())}")
 
         # First check if this is already a model ID in marketing config
-        if model_id in MARKETING_CONFIG:
+        if model_id in WEB_APP_MODEL_URL:
             logger.info(f"Found {model_id} in marketing config")
             # Get the marketing data to extract the proper model ID from the link
-            marketing_data = MARKETING_CONFIG[model_id]
+            marketing_data = WEB_APP_MODEL_URL[model_id]
             link = marketing_data.get("link", "")
 
             # Extract model ID from link: "/models/fireworks/model-name" -> "accounts/fireworks/models/model-name"
@@ -172,7 +172,7 @@ class FireworksConfig:
     @staticmethod
     def get_all_models() -> Dict[str, Dict[str, Any]]:
         """Get all available models"""
-        return MARKETING_CONFIG
+        return WEB_APP_MODEL_URL
 
     def get_defaults(self) -> Dict[str, Any]:
         """Get default settings"""

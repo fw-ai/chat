@@ -70,9 +70,9 @@ except Exception as e:
 _SUPPORTED_MODELS = [v["id"] for _, v in APP_CONFIG["models"].items()]
 
 
-def get_marketing_config():
+def get_web_app_model_url():
     try:
-        response = requests.get(APP_CONFIG["marketing_url"], timeout=10)
+        response = requests.get(APP_CONFIG["web_app_model_library_url"], timeout=10)
         response.raise_for_status()
         full_urls = response.json()
     except (requests.RequestException, ValueError):
@@ -97,4 +97,4 @@ def get_marketing_config():
     return cleaned_urls
 
 
-MARKETING_CONFIG = get_marketing_config()
+WEB_APP_MODEL_URL = get_web_app_model_url()

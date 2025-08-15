@@ -77,7 +77,7 @@ async def test_api_key_with_fireworks(api_key: str) -> bool:
             }
 
             async with session.get(
-                APP_CONFIG["marketing_url"],
+                APP_CONFIG["web_app_model_library_url"],
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=2),
             ) as response:
