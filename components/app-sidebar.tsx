@@ -26,6 +26,8 @@ import { Badge } from "@/components/ui/badge"
 import { FunctionDefinitionModal } from "@/components/function-definition-modal"
 import type { FunctionDefinition } from "@/types/chat"
 
+const env = process.env
+
 export type ViewType = "single" | "comparison"
 
 interface AppSidebarProps {
@@ -231,7 +233,7 @@ export function AppSidebar({
                     <p className="text-xs text-muted-foreground">
                       Dont have an API key? Get one {" "}
                       <a
-                        href={`${process.env.NEXT_PUBLIC_FIREWORKS_APP_URL || 'https://app.fireworks.ai'}/settings/users/api-keys`}
+                        href={`${env.NEXT_PUBLIC_FIREWORKS_APP_URL}/settings/users/api-keys`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 underline"
