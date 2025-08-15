@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+
+const env = process.env
 import { ExternalLink, Zap, Eye, EyeOff } from "lucide-react"
 
 interface UpgradePromptDialogProps {
@@ -42,7 +44,7 @@ export function UpgradePromptDialog({
   const isValidKey = apiKey.trim().length > 0 && isValidApiKeyFormat(apiKey.trim())
 
   const handleGetApiKey = () => {
-    window.open("https://app.fireworks.ai/settings/users/api-keys", "_blank", "noopener,noreferrer")
+    window.open(`${env.NEXT_PUBLIC_FIREWORKS_APP_URL}/settings/users/api-keys`, "_blank", "noopener,noreferrer")
   }
 
   const handleSaveApiKey = () => {

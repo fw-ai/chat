@@ -231,7 +231,7 @@ export function AppSidebar({
                     <p className="text-xs text-muted-foreground">
                       Dont have an API key? Get one {" "}
                       <a
-                        href="https://app.fireworks.ai/settings/users/api-keys"
+                        href={`${process.env.NEXT_PUBLIC_FIREWORKS_APP_URL || 'https://app.fireworks.ai'}/settings/users/api-keys`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 underline"

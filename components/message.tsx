@@ -8,6 +8,8 @@ import Image from "next/image"
 import { ThinkingDisplay } from "@/components/thinking-display"
 import { MarkdownRenderer } from "@/components/markdown-renderer"
 
+const env = process.env
+
 interface MessageProps {
   message: Message
   showModel?: boolean
@@ -53,7 +55,7 @@ export function MessageComponent({ message, showModel = false, model }: MessageP
       <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
         {model && (model as any).logomark ? (
           <img
-            src={`${process.env.NEXT_PUBLIC_FIREWORKS_APP_URL}${(model as any).logomark}`}
+            src={`${env.NEXT_PUBLIC_FIREWORKS_APP_URL}${(model as any).logomark}`}
             alt={`${model.name} logo`}
             className="w-4 h-4 object-contain"
           />

@@ -5,6 +5,8 @@ import type { ChatModel } from "@/types/chat"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useModels } from "@/hooks/use-models"
 
+const env = process.env
+
 interface ModelSelectorProps {
   selectedModel?: ChatModel
   onModelChange: (model: ChatModel) => void
@@ -60,7 +62,7 @@ export function ModelSelector({
             <div className="flex items-center gap-2">
               {(selectedModel as any).logomark && (
                 <img
-                  src={`https://app.fireworks.ai${(selectedModel as any).logomark}`}
+                  src={`${env.NEXT_PUBLIC_FIREWORKS_APP_URL}${(selectedModel as any).logomark}`}
                   alt={`${selectedModel.name} logo`}
                   className="w-4 h-4 object-contain"
                 />
@@ -76,7 +78,7 @@ export function ModelSelector({
             <div className="flex items-center gap-2">
               {(model as any).logomark && (
                 <img
-                  src={`https://app.fireworks.ai${(model as any).logomark}`}
+                  src={`${env.NEXT_PUBLIC_FIREWORKS_APP_URL}${(model as any).logomark}`}
                   alt={`${model.name} logo`}
                   className="w-4 h-4 object-contain"
                 />
