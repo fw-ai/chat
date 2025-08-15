@@ -81,7 +81,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
-          className="w-64"
+          className="w-full"
           disabled={false} // No longer disable based on API key
           apiKey={apiKey}
           functionCallingEnabled={functionCallingEnabled}

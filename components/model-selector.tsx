@@ -55,12 +55,32 @@ export function ModelSelector({
       disabled={disabled || isLoading}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"} />
+        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"}>
+          {selectedModel && (
+            <div className="flex items-center gap-2">
+              {(selectedModel as any).logomark && (
+                <img
+                  src={`https://app.fireworks.ai${(selectedModel as any).logomark}`}
+                  alt={`${selectedModel.name} logo`}
+                  className="w-4 h-4 object-contain"
+                />
+              )}
+              <span>{selectedModel.name}</span>
+            </div>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id}>
-            <div className="flex flex-col items-start">
+            <div className="flex items-center gap-2">
+              {(model as any).logomark && (
+                <img
+                  src={`https://app.fireworks.ai${(model as any).logomark}`}
+                  alt={`${model.name} logo`}
+                  className="w-4 h-4 object-contain"
+                />
+              )}
               <span className="font-medium">{model.name}</span>
             </div>
           </SelectItem>

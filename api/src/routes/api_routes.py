@@ -389,7 +389,6 @@ async def single_chat(
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
             )
-
         if request.comparison_id:
             session_id = request.comparison_id
             session_type = "compare"

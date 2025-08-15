@@ -1,4 +1,3 @@
-from functools import lru_cache
 from pathlib import Path
 
 import requests
@@ -71,7 +70,6 @@ except Exception as e:
 _SUPPORTED_MODELS = [v["id"] for _, v in APP_CONFIG["models"].items()]
 
 
-@lru_cache
 def get_marketing_config():
     try:
         response = requests.get(APP_CONFIG["marketing_url"], timeout=10)
@@ -97,3 +95,6 @@ def get_marketing_config():
             }
 
     return cleaned_urls
+
+
+MARKETING_CONFIG = get_marketing_config()
