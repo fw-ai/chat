@@ -6,3 +6,4 @@ pydantic
 PyYAML
 redis>=4.5.0
 redis[hiredis]>=4.5.0
+requests==2.32.4
