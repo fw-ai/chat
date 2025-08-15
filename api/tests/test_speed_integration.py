@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from modules.benchmark import FireworksBenchmarkService
-from modules.llm_completion import FireworksStreamer
+from src.llm_inference.benchmark import FireworksBenchmarkService
+from src.llm_inference.llm_completion import FireworksStreamer
 
 
 class SpeedTestComparisonRequest(BaseModel):
@@ -29,7 +29,7 @@ class TestSpeedTestIntegration:
         self.streamer = FireworksStreamer(self.api_key)
 
         # Mock models for testing
-        self.test_models = ["llama_scout", "qwen3_235b"]
+        self.test_models = ["llama_scout", "qwen3_235b_2507"]
         self.test_message = "What is the capital of France?"
 
     @pytest.mark.asyncio
@@ -300,7 +300,7 @@ class TestSpeedTestAPIIntegration:
         """Test API with speed test enabled"""
 
         request_data = {
-            "model_keys": ["llama_scout", "qwen3_235b"],
+            "model_keys": ["llama_scout", "qwen3_235b_2507"],
             "message": "Test message",
             "speed_test": True,
             "concurrency": 3,
@@ -320,7 +320,7 @@ class TestSpeedTestAPIIntegration:
         """Test API with speed test disabled"""
 
         request_data = {
-            "model_keys": ["llama_scout", "qwen3_235b"],
+            "model_keys": ["llama_scout", "qwen3_235b_2507"],
             "message": "Test message",
             "speed_test": False,
         }

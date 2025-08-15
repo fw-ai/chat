@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import json
 import uuid
 
-from src.modules.llm_completion import FireworksStreamer, FireworksConfig
+from src.llm_inference.llm_completion import FireworksStreamer, FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.auth import (
     get_validated_api_key,
@@ -21,11 +21,13 @@ from src.services.dependencies import (
     get_comparison_service,
     get_rate_limiter,
     get_models,
-    AppServices,
 )
 from src.logger import logger
-from src.modules.utils import add_function_calling_to_prompt, add_user_request_to_prompt
-from src.modules.llm_completion import DEFAULT_TEMPERATURE
+from src.llm_inference.utils import (
+    add_function_calling_to_prompt,
+    add_user_request_to_prompt,
+)
+from src.llm_inference.llm_completion import DEFAULT_TEMPERATURE
 
 app = FastAPI(
     title="Fireworks Chat & Benchmark API",
@@ -40,18 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Services are now managed through dependency injection
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup resources on app shutdown"""
-    try:
-        services = AppServices.get_instance()
-        await services.cleanup()
-    except Exception as e:
-        logger.error(f"Error during app shutdown: {str(e)}")
 
 
 class ChatMessage(BaseModel):
@@ -399,7 +389,6 @@ async def single_chat(
             raise HTTPException(
                 status_code=400, detail=f"Invalid model key: {request.model_key}"
             )
-
         if request.comparison_id:
             session_id = request.comparison_id
             session_type = "compare"

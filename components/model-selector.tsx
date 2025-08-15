@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import type { ChatModel } from "@/types/chat"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useModels } from "@/hooks/use-models"
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 interface ModelSelectorProps {
   selectedModel?: ChatModel
@@ -55,12 +56,32 @@ export function ModelSelector({
       disabled={disabled || isLoading}
     >
       <SelectTrigger className={className}>
-        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"} />
+        <SelectValue placeholder={isLoading ? "Loading models..." : "Select a model"}>
+          {selectedModel && (
+            <div className="flex items-center gap-2">
+              {(selectedModel as any).logomark && (
+                <img
+                  src={`${FIREWORKS_APP_URL}${(selectedModel as any).logomark}`}
+                  alt={`${selectedModel.name} logo`}
+                  className="w-4 h-4 object-contain"
+                />
+              )}
+              <span>{selectedModel.name}</span>
+            </div>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id}>
-            <div className="flex flex-col items-start">
+            <div className="flex items-center gap-2">
+              {(model as any).logomark && (
+                <img
+                  src={`${FIREWORKS_APP_URL}${(model as any).logomark}`}
+                  alt={`${model.name} logo`}
+                  className="w-4 h-4 object-contain"
+                />
+              )}
               <span className="font-medium">{model.name}</span>
             </div>
           </SelectItem>

@@ -81,7 +81,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
-          className="w-64"
+          className="w-full"
           disabled={false} // No longer disable based on API key
           apiKey={apiKey}
           functionCallingEnabled={functionCallingEnabled}
@@ -104,7 +104,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
             ) : (
               <div className="space-y-0">
                 {messages.map((message) => (
-                  <MessageComponent key={message.id} message={message} showModel={true} />
+                  <MessageComponent key={message.id} message={message} showModel={true} model={selectedModel} />
                 ))}
                 <div ref={messagesEndRef} />
               </div>

@@ -1,19 +1,21 @@
 "use client"
 
-import type { Message } from "@/types/chat"
+import type { Message, ChatModel } from "@/types/chat"
 import { Button } from "@/components/ui/button"
 import { Copy, AlertCircle, Wrench } from "lucide-react"
 import { useState } from "react"
 import Image from "next/image"
 import { ThinkingDisplay } from "@/components/thinking-display"
 import { MarkdownRenderer } from "@/components/markdown-renderer"
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 interface MessageProps {
   message: Message
   showModel?: boolean
+  model?: ChatModel // Add the full model object
 }
 
-export function MessageComponent({ message, showModel = false }: MessageProps) {
+export function MessageComponent({ message, showModel = false, model }: MessageProps) {
   const [copied, setCopied] = useState(false)
 
   const copyToClipboard = async () => {
@@ -50,19 +52,27 @@ export function MessageComponent({ message, showModel = false }: MessageProps) {
   return (
     <div className="flex gap-3 p-4 bg-background">
       <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
-        <Image
-          src="/favicon-16x16.png"
-          alt="Fireworks AI"
-          width={16}
-          height={16}
-          className="w-4 h-4"
-        />
+        {model && (model as any).logomark ? (
+          <img
+            src={`${FIREWORKS_APP_URL}${(model as any).logomark}`}
+            alt={`${model.name} logo`}
+            className="w-4 h-4 object-contain"
+          />
+        ) : (
+          <Image
+            src="/favicon-16x16.png"
+            alt="Fireworks AI"
+            width={16}
+            height={16}
+            className="w-4 h-4"
+          />
+        )}
       </div>
 
       <div className="flex-1 space-y-2">
         <div className="flex items-center gap-2">
-          {showModel && message.model && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{message.model}</span>
+          {showModel && model && (
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{model.name}</span>
           )}
           <span className="text-xs text-muted-foreground">{message.timestamp.toLocaleTimeString()}</span>
         </div>

@@ -1,7 +1,7 @@
 import pytest
 import os
 from unittest.mock import patch
-from src.modules.llm_completion import FireworksStreamer, StreamingStats
+from src.llm_inference.llm_completion import FireworksStreamer, StreamingStats
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -61,7 +61,7 @@ async def test_performance_metrics_disabled_by_default(streamer):
         ):
             chunks = []
             async for chunk in streamer.stream_chat_completion(
-                model_key="qwen3_235b",
+                model_key="qwen3_235b_2507",
                 messages=[{"role": "user", "content": "Hello"}],
                 enable_perf_metrics=False,
             ):
@@ -87,7 +87,7 @@ async def test_performance_metrics_enabled_when_requested(streamer):
         ):
             chunks = []
             async for chunk in streamer.stream_chat_completion(
-                model_key="qwen3_235b",
+                model_key="qwen3_235b_2507",
                 messages=[{"role": "user", "content": "Hello"}],
                 enable_perf_metrics=True,
             ):
@@ -205,7 +205,7 @@ async def test_performance_metrics_extraction_with_callback(streamer):
 
                 chunks = []
                 async for chunk in streamer.stream_chat_completion(
-                    model_key="qwen3_235b",
+                    model_key="qwen3_235b_2507",
                     messages=[{"role": "user", "content": "Hello"}],
                     enable_perf_metrics=True,
                     callback=stats_callback,

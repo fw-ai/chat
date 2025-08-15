@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { FunctionDefinitionModal } from "@/components/function-definition-modal"
 import type { FunctionDefinition } from "@/types/chat"
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 export type ViewType = "single" | "comparison"
 
@@ -231,7 +232,7 @@ export function AppSidebar({
                     <p className="text-xs text-muted-foreground">
                       Dont have an API key? Get one {" "}
                       <a
-                        href="https://app.fireworks.ai/settings/users/api-keys"
+                        href={`${FIREWORKS_APP_URL}/settings/users/api-keys`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-800 underline"

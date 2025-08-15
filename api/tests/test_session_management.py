@@ -1,13 +1,5 @@
-#!/usr/bin/env python3
-"""
-Test script to validate session management behavior from user perspective
-"""
 import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-
-from modules.session import SessionManager
+from src.modules.session import SessionManager
 
 
 def test_user_chat_session_workflow():
@@ -26,13 +18,13 @@ def test_user_chat_session_workflow():
     sm = SessionManager(config)
 
     # Simulate user starting a chat with Model A
-    print("\n1. User starts chat with qwen3_235b")
+    print("\n1. User starts chat with qwen3_235b_2507")
     session = sm.get_or_create_session(
-        session_id="user_session_1", model_key="qwen3_235b", session_type="single"
+        session_id="user_session_1", model_key="qwen3_235b_2507", session_type="single"
     )
 
     # User has conversation with Model A
-    print("2. User has conversation with qwen3_235b")
+    print("2. User has conversation with qwen3_235b_2507")
     messages = [
         {"role": "user", "content": "What is Python?"},
         {"role": "assistant", "content": "Python is a programming language..."},
@@ -82,9 +74,9 @@ def test_user_chat_session_workflow():
     print(f"   Current model: {session.model_key}")
 
     # User switches back to Model A - should get fresh start again
-    print("\n5. User switches back to qwen3_235b")
+    print("\n5. User switches back to qwen3_235b_2507")
     session = sm.get_or_create_session(
-        session_id="user_session_1", model_key="qwen3_235b", session_type="single"
+        session_id="user_session_1", model_key="qwen3_235b_2507", session_type="single"
     )
 
     history_after_switch_back = sm.get_conversation_history("user_session_1")
@@ -117,10 +109,10 @@ def test_comparison_chat_workflow():
     sm = SessionManager(config)
 
     # User starts comparison between Model A and Model B
-    print("\n1. User starts comparison: qwen3_235b vs llama_scout")
+    print("\n1. User starts comparison: qwen3_235b_2507 vs llama_scout")
     session = sm.get_or_create_session(
         session_id="comparison_session_1",
-        model_keys=["qwen3_235b", "llama_scout"],
+        model_keys=["qwen3_235b_2507", "llama_scout"],
         session_type="compare",
     )
 
@@ -207,7 +199,9 @@ def test_session_persistence():
 
     # Create session
     session1 = sm.get_or_create_session(
-        session_id="persistent_session", model_key="qwen3_235b", session_type="single"
+        session_id="persistent_session",
+        model_key="qwen3_235b_2507",
+        session_type="single",
     )
 
     # Add messages
@@ -219,7 +213,9 @@ def test_session_persistence():
 
     # Get session again (should be same object)
     session2 = sm.get_or_create_session(
-        session_id="persistent_session", model_key="qwen3_235b", session_type="single"
+        session_id="persistent_session",
+        model_key="qwen3_235b_2507",
+        session_type="single",
     )
 
     # Check persistence

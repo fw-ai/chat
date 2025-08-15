@@ -5,8 +5,8 @@ import aiohttp
 from typing import AsyncGenerator, Dict, Any, Optional, Callable, Tuple, List
 from dataclasses import dataclass
 from src.logger import logger
-from src.constants.configs import APP_CONFIG
-from src.modules.utils import add_user_request_to_prompt
+from src.constants.configs import APP_CONFIG, WEB_APP_MODEL_URL
+from src.llm_inference.utils import add_user_request_to_prompt
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -129,15 +129,50 @@ class FireworksConfig:
     def __init__(self):
         self.config = APP_CONFIG
 
-    def get_model(self, model_key: str) -> Dict[str, Any]:
-        """Get model configuration by key"""
-        if model_key not in self.config["models"]:
-            raise ValueError(f"Model {model_key} not found in config")
-        return self.config["models"][model_key]
+    def get_model(self, model_id: str) -> Dict[str, Any]:
+        """Get model configuration by model ID"""
+        logger.info(f"get_model called with: {model_id}")
+        logger.info(f"MARKETING_CONFIG keys: {list(WEB_APP_MODEL_URL.keys())}")
 
-    def get_all_models(self) -> Dict[str, Dict[str, Any]]:
+        # First check if this is already a model ID in marketing config
+        if model_id in WEB_APP_MODEL_URL:
+            logger.info(f"Found {model_id} in marketing config")
+            # Get the marketing data to extract the proper model ID from the link
+            marketing_data = WEB_APP_MODEL_URL[model_id]
+            link = marketing_data.get("link", "")
+
+            # Extract model ID from link: "/models/fireworks/model-name" -> "accounts/fireworks/models/model-name"
+            if link.startswith("/models/fireworks/"):
+                fireworks_model_id = f"accounts/fireworks/models/{link.split('/')[-1]}"
+                logger.info(f"Extracted Fireworks model ID: {fireworks_model_id}")
+
+                # Return a config with the proper Fireworks model ID
+                return {"id": fireworks_model_id, "original_id": model_id, "link": link}
+            else:
+                logger.warning(f"Unexpected link format: {link}")
+                # Fallback to original behavior
+                for model_key, model_config in self.config["models"].items():
+                    if model_config["id"] == model_id:
+                        logger.info(
+                            f"Found matching config for {model_id}: {model_config}"
+                        )
+                        return model_config
+                raise ValueError(
+                    f"Model ID {model_id} found in marketing config but not in local config"
+                )
+
+        # If not found in marketing config, maybe it's a model key
+        if model_id in self.config["models"]:
+            logger.info(f"Found {model_id} as model key in local config")
+            return self.config["models"][model_id]
+
+        logger.error(f"Model {model_id} not found anywhere")
+        raise ValueError(f"Model {model_id} not found in config")
+
+    @staticmethod
+    def get_all_models() -> Dict[str, Dict[str, Any]]:
         """Get all available models"""
-        return self.config["models"]
+        return WEB_APP_MODEL_URL
 
     def get_defaults(self) -> Dict[str, Any]:
         """Get default settings"""
@@ -532,6 +567,8 @@ class FireworksStreamer:
         )
 
         model_config = self.config.get_model(model_key)
+        logger.info(f"Model key received: {model_key}")
+        logger.info(f"Model config: {model_config}")
 
         payload = self._prepare_base_payload(
             model_config=model_config,
@@ -539,6 +576,7 @@ class FireworksStreamer:
             enable_perf_metrics=enable_perf_metrics,
             function_definitions=function_definitions,
         )
+        logger.info(f"Payload model: {payload.get('model')}")
         payload["messages"] = messages
 
         async for chunk in self._stream_request(
