@@ -22,7 +22,6 @@ def streamer(api_key):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_real_performance_metrics_integration(streamer):
     """Integration test with real Fireworks API to verify performance metrics work"""
     collected_stats = []
@@ -33,7 +32,7 @@ async def test_real_performance_metrics_integration(streamer):
     # Test with performance metrics enabled
     chunks = []
     async for chunk in streamer.stream_chat_completion(
-        model_key="qwen3_235b_2507",
+        model_key="qwen3-235b-a22b-instruct-2507",
         messages=[{"role": "user", "content": "Say 'hello' in exactly one word."}],
         enable_perf_metrics=True,
         callback=stats_callback,
@@ -86,7 +85,10 @@ async def test_performance_metrics_comparison_scenario(streamer):
     """Test performance metrics in a comparison-like scenario"""
 
     # Simulate side-by-side comparison with two models
-    model_keys = ["qwen3_235b_2507", "qwen3_235b_2507"]  # Same model for testing
+    model_keys = [
+        "gpt-oss-120b",
+        "qwen3-235b-a22b-instruct-2507",
+    ]  # Same model for testing
     messages = [{"role": "user", "content": "Count from 1 to 3."}]
 
     results = []
