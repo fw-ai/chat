@@ -2,6 +2,8 @@ import re
 import aiohttp
 from fastapi import HTTPException, Request
 from typing import Optional
+
+from constants.configs import APP_CONFIG
 from src.logger import logger
 
 
@@ -75,7 +77,7 @@ async def test_api_key_with_fireworks(api_key: str) -> bool:
             }
 
             async with session.get(
-                "https://api.fireworks.ai/inference/v1/models",
+                APP_CONFIG["marketing_url"],
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=2),
             ) as response:

@@ -1,4 +1,4 @@
-from llm_inference.benchmark import BenchmarkResult
+from src.llm_inference.benchmark import BenchmarkResult
 
 
 def test_rps_calculation():
@@ -73,7 +73,7 @@ def test_realistic_benchmark_scenario():
     # Simulate a 10-second benchmark with 50 concurrent requests
     result = BenchmarkResult(
         model_name="Qwen3 235B",
-        model_id="qwen3_235b",
+        model_id="qwen3_235b_2507",
         concurrency=50,
         prompt="What is machine learning?",
         total_time=10.5,  # 10.5 seconds

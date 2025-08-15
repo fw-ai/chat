@@ -1,14 +1,5 @@
-#!/usr/bin/env python3
-"""
-Test conversation history functionality
-"""
 import pytest
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from modules.session import SessionManager
+from src.modules.session import SessionManager
 
 
 @pytest.fixture
@@ -29,7 +20,7 @@ def test_conversation_history_flow(session_manager):
 
     # Simulate first request: user says "hello"
     session_id = "test_conversation_session"
-    model_key = "qwen3_235b"
+    model_key = "qwen3_235b_2507"
 
     # Add user message (simulating API route logic)
     user_message1 = "hello"
@@ -90,7 +81,7 @@ def test_model_change_clears_history(session_manager):
 
     # Start conversation with first model
     session_id = "test_model_change_session"
-    model_key1 = "qwen3_235b"
+    model_key1 = "qwen3_235b_2507"
 
     # Add some conversation
     session_manager.add_user_message(session_id, "Hello")
@@ -115,7 +106,7 @@ def test_session_persistence(session_manager):
     """Test that the same session ID returns the same session object"""
 
     session_id = "test_persistence_session"
-    model_key = "qwen3_235b"
+    model_key = "qwen3_235b_2507"
 
     # Get session first time
     session1 = session_manager.get_or_create_session(
@@ -143,7 +134,7 @@ def test_comparison_chat_history(session_manager):
     """Test conversation history for comparison chat"""
 
     session_id = "test_comparison_session"
-    model_keys = ["qwen3_235b", "llama_scout"]
+    model_keys = ["qwen3_235b_2507", "llama_scout"]
 
     # Add conversation
     session_manager.add_user_message(session_id, "What is Python?")
