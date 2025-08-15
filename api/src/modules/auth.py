@@ -3,7 +3,7 @@ import aiohttp
 from fastapi import HTTPException, Request
 from typing import Optional
 
-from constants.configs import APP_CONFIG
+from src.constants.configs import APP_CONFIG
 from src.logger import logger
 
 

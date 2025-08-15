@@ -4,10 +4,10 @@ from datetime import datetime
 import os
 import ipaddress
 from dataclasses import dataclass
+from fastapi import HTTPException, Request
 
 from src.constants.configs import APP_CONFIG
 from src.logger import logger
-from fastapi import HTTPException, Request
 from src.modules.auth import extract_client_ip
 
 
