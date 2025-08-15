@@ -236,9 +236,11 @@ export class ApiClient {
     // Transform backend model format to frontend format
     return Object.entries(data.models).map(([key, model]: [string, any]) => ({
       id: key,
-      name: model.display_name || model.name,
+      name: model.title || model.display_name || model.name || key,
       provider: "Fireworks",
-      function_calling: model.function_calling || false
+      function_calling: model.supportsTools || model.function_calling || false,
+      // Pass through marketing data
+      ...model
     }))
   }
 

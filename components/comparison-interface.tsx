@@ -169,7 +169,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
                     {/* Left model response */}
                     <div className="w-1/2 border-r" style={{ minWidth: '0' }}>
                       {group.leftAssistant ? (
-                        <MessageComponent key={group.leftAssistant.id} message={group.leftAssistant} />
+                        <MessageComponent key={group.leftAssistant.id} message={group.leftAssistant} showModel={true} model={leftModel} />
                       ) : (
                         <div className="p-4 flex items-center justify-center text-muted-foreground">
                           <div className="text-sm">No response</div>
@@ -180,7 +180,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
                     {/* Right model response */}
                     <div className="w-1/2" style={{ minWidth: '0' }}>
                       {group.rightAssistant ? (
-                        <MessageComponent key={group.rightAssistant.id} message={group.rightAssistant} />
+                        <MessageComponent key={group.rightAssistant.id} message={group.rightAssistant} showModel={true} model={rightModel} />
                       ) : (
                         <div className="p-4 flex items-center justify-center text-muted-foreground">
                           <div className="text-sm">No response</div>
