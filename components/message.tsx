@@ -7,8 +7,7 @@ import { useState } from "react"
 import Image from "next/image"
 import { ThinkingDisplay } from "@/components/thinking-display"
 import { MarkdownRenderer } from "@/components/markdown-renderer"
-
-const FIREWORKS_APP_URL = process.env.NEXT_PUBLIC_FIREWORKS_APP_URL
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 interface MessageProps {
   message: Message

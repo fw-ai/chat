@@ -25,8 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { FunctionDefinitionModal } from "@/components/function-definition-modal"
 import type { FunctionDefinition } from "@/types/chat"
-
-const FIREWORKS_APP_URL = process.env.NEXT_PUBLIC_FIREWORKS_APP_URL
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 export type ViewType = "single" | "comparison"
 

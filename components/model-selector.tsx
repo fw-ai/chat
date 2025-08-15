@@ -4,8 +4,7 @@ import { useEffect } from "react"
 import type { ChatModel } from "@/types/chat"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useModels } from "@/hooks/use-models"
-
-const FIREWORKS_APP_URL = process.env.NEXT_PUBLIC_FIREWORKS_APP_URL
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 interface ModelSelectorProps {
   selectedModel?: ChatModel

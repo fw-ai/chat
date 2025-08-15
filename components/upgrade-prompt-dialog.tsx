@@ -13,9 +13,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-
-const FIREWORKS_APP_URL = process.env.NEXT_PUBLIC_FIREWORKS_APP_URL
 import { ExternalLink, Zap, Eye, EyeOff } from "lucide-react"
+import { FIREWORKS_APP_URL } from "@/lib/constants"
 
 interface UpgradePromptDialogProps {
   open: boolean
