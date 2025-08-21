@@ -11,6 +11,9 @@ models:
   qwen3_coder:
     id: "qwen3-coder-480b-a35b-instruct"
 
+  qwen3_coder_30b:
+    id: "qwen3-coder-30b-a3b-instruct"
+
   qwen3_235b_2507:
     id: "qwen3-235b-a22b-instruct-2507"
 
@@ -19,6 +22,9 @@ models:
 
   deepseek_r1_05_28:
     id: "deepseek-r1-0528"
+
+  deepseek_v3_1:
+    id: "deepseek-v3p1"
 
   deepseek_v3:
     id: "deepseek-v3"
