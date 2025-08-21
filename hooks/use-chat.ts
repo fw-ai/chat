@@ -145,49 +145,6 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         resetRateLimit()
       }
 
-      // Check rate limit before proceeding (skip if API key is provided)
-      if (!hasValidApiKey) {
-        try {
-          await apiClient.countMessage()
-          console.log("Rate limit check passed")
-        } catch (error) {
-          // Handle rate limit errors specifically
-          const rateLimitError = error as Error & Partial<RateLimitErrorInfo>
-
-          if (rateLimitError.isRateLimit) {
-            const errorMessage = rateLimitError.message || 'Daily limit exceeded'
-            setState((prev) => ({
-              ...prev,
-              isLoading: false,
-              error: null,
-            }))
-
-            // Handle rate limit error with the rate limit hook
-            const mockHeaders = new Headers({
-              'X-RateLimit-Limit-IP': rateLimitError.headers?.ipLimit?.toString() || '10',
-              'X-RateLimit-Remaining-IP': rateLimitError.headers?.ipRemaining?.toString() || '0',
-              'X-RateLimit-Limit-Prefix': rateLimitError.headers?.prefixLimit?.toString() || '50',
-              'X-RateLimit-Remaining-Prefix': rateLimitError.headers?.prefixRemaining?.toString() || '0',
-            })
-
-            const mockResponse = {
-              status: 429,
-              headers: mockHeaders,
-              json: async () => ({ detail: errorMessage })
-            } as unknown as Response
-
-            await handleRateLimitError(mockResponse)
-            return // Exit early - don't proceed with chat request
-          } else {
-            // Log other errors but continue with chat request
-            console.error("Rate limit check failed, but continuing:", error)
-          }
-        }
-      }
-
-      // Update session activity
-      sessionStateManager.updateSessionActivity(state.sessionId)
-
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
@@ -195,13 +152,6 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         timestamp: new Date(),
         sessionId: state.sessionId,
       }
-
-      setState((prev) => ({
-        ...prev,
-        messages: [...prev.messages, userMessage],
-        isLoading: true,
-        error: null,
-      }))
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -213,10 +163,77 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         sessionId: state.sessionId,
       }
 
+      // OPTIMISTIC UI UPDATE: Show user message and loading state immediately
       setState((prev) => ({
         ...prev,
-        messages: [...prev.messages, assistantMessage],
+        messages: [...prev.messages, userMessage, assistantMessage],
+        isLoading: true,
+        error: null,
       }))
+
+      // Background tasks (don't block UI)
+      const backgroundTasks = async () => {
+        // Check rate limit in background (skip if API key is provided)
+        if (!hasValidApiKey) {
+          try {
+            await apiClient.countMessage()
+            console.log("Rate limit check passed")
+          } catch (error) {
+            // Handle rate limit errors specifically
+            const rateLimitError = error as Error & Partial<RateLimitErrorInfo>
+
+            if (rateLimitError.isRateLimit) {
+              const errorMessage = rateLimitError.message || 'Daily limit exceeded'
+              setState((prev) => ({
+                ...prev,
+                messages: prev.messages.map((msg) =>
+                  msg.id === assistantMessage.id
+                    ? {
+                        ...msg,
+                        error: "Daily limit exceeded",
+                        isStreaming: false,
+                        content: ""
+                      }
+                    : msg,
+                ),
+                isLoading: false,
+                error: null,
+              }))
+
+              // Handle rate limit error with the rate limit hook
+              const mockHeaders = new Headers({
+                'X-RateLimit-Limit-IP': rateLimitError.headers?.ipLimit?.toString() || '10',
+                'X-RateLimit-Remaining-IP': rateLimitError.headers?.ipRemaining?.toString() || '0',
+                'X-RateLimit-Limit-Prefix': rateLimitError.headers?.prefixLimit?.toString() || '50',
+                'X-RateLimit-Remaining-Prefix': rateLimitError.headers?.prefixRemaining?.toString() || '0',
+              })
+
+              const mockResponse = {
+                status: 429,
+                headers: mockHeaders,
+                json: async () => ({ detail: errorMessage })
+              } as unknown as Response
+
+              await handleRateLimitError(mockResponse)
+              return false // Exit early - don't proceed with chat request
+            } else {
+              // Log other errors but continue with chat request
+              console.error("Rate limit check failed, but continuing:", error)
+            }
+          }
+        }
+
+        // Update session activity
+        sessionStateManager.updateSessionActivity(state.sessionId)
+        return true
+      }
+
+      // Start background tasks and API call in parallel
+      const shouldProceed = await backgroundTasks()
+
+      if (!shouldProceed) {
+        return // Exit early if rate limited
+      }
 
       // Create abort controller for cleanup
       const abortController = new AbortController()

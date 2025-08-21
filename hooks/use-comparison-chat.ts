@@ -184,46 +184,6 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         resetRateLimit()
       }
 
-      // Check rate limit before proceeding (skip if API key is provided)
-      // Count as 1 message regardless of how many models we're comparing
-      if (!hasValidApiKey) {
-        try {
-          await apiClient.countMessage()
-          console.log("Rate limit check passed for comparison")
-        } catch (error) {
-          // Handle rate limit errors specifically
-          const rateLimitError = error as Error & Partial<RateLimitErrorInfo>
-
-          if (rateLimitError.isRateLimit) {
-            const errorMessage = rateLimitError.message || 'Daily limit exceeded'
-            setState((prev) => ({
-              ...prev,
-              leftChat: { ...prev.leftChat, isLoading: false, error: null },
-              rightChat: { ...prev.rightChat, isLoading: false, error: null },
-            }))
-
-            // Handle rate limit error with the rate limit hook
-            const mockHeaders = new Headers({
-              'X-RateLimit-Limit-IP': rateLimitError.headers?.ipLimit?.toString() || '10',
-              'X-RateLimit-Remaining-IP': rateLimitError.headers?.ipRemaining?.toString() || '0',
-              'X-RateLimit-Limit-Prefix': rateLimitError.headers?.prefixLimit?.toString() || '50',
-              'X-RateLimit-Remaining-Prefix': rateLimitError.headers?.prefixRemaining?.toString() || '0',
-            })
-
-            const mockResponse = {
-              status: 429,
-              headers: mockHeaders,
-              json: async () => ({ detail: errorMessage })
-            } as unknown as Response
-
-            await handleRateLimitError(mockResponse)
-            return // Exit early - don't proceed with chat request
-          } else {
-            // Log other errors but continue with chat request
-            console.error("Rate limit check failed, but continuing:", error)
-          }
-        }
-      }
 
       // Update session activity
       sessionStateManager.updateSessionActivity(state.sessionId)
@@ -257,37 +217,110 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         sessionId: state.sessionId,
       }
 
+      // OPTIMISTIC UI UPDATE: Show user messages and loading state immediately
+      setState((prev) => ({
+        ...prev,
+        leftChat: {
+          ...prev.leftChat,
+          messages: [...prev.leftChat.messages, userMessage, leftAssistantMessage],
+          isLoading: true,
+          error: null,
+        },
+        rightChat: {
+          ...prev.rightChat,
+          messages: [...prev.rightChat.messages, userMessage, rightAssistantMessage],
+          isLoading: true,
+          error: null,
+        },
+        speedTestError: undefined,
+      }))
+
       try {
-        // Step 1: Initialize comparison session first (before updating UI state)
+        // Background tasks and comparison initialization
+        const backgroundTasks = async () => {
+          // Check rate limit in background (skip if API key is provided)
+          if (!hasValidApiKey) {
+            try {
+              await apiClient.countMessage()
+              console.log("Rate limit check passed for comparison")
+            } catch (error) {
+              // Handle rate limit errors specifically
+              const rateLimitError = error as Error & Partial<RateLimitErrorInfo>
+
+              if (rateLimitError.isRateLimit) {
+                const errorMessage = rateLimitError.message || 'Daily limit exceeded'
+                setState((prev) => ({
+                  ...prev,
+                  leftChat: {
+                    ...prev.leftChat,
+                    messages: prev.leftChat.messages.map((msg) =>
+                      msg.id === leftAssistantMessage.id
+                        ? { ...msg, error: "Daily limit exceeded", isStreaming: false, content: "" }
+                        : msg,
+                    ),
+                    isLoading: false,
+                    error: null
+                  },
+                  rightChat: {
+                    ...prev.rightChat,
+                    messages: prev.rightChat.messages.map((msg) =>
+                      msg.id === rightAssistantMessage.id
+                        ? { ...msg, error: "Daily limit exceeded", isStreaming: false, content: "" }
+                        : msg,
+                    ),
+                    isLoading: false,
+                    error: null
+                  },
+                }))
+
+                // Handle rate limit error with the rate limit hook
+                const mockHeaders = new Headers({
+                  'X-RateLimit-Limit-IP': rateLimitError.headers?.ipLimit?.toString() || '10',
+                  'X-RateLimit-Remaining-IP': rateLimitError.headers?.ipRemaining?.toString() || '0',
+                  'X-RateLimit-Limit-Prefix': rateLimitError.headers?.prefixLimit?.toString() || '50',
+                  'X-RateLimit-Remaining-Prefix': rateLimitError.headers?.prefixRemaining?.toString() || '0',
+                })
+
+                const mockResponse = {
+                  status: 429,
+                  headers: mockHeaders,
+                  json: async () => ({ detail: errorMessage })
+                } as unknown as Response
+
+                await handleRateLimitError(mockResponse)
+                return false // Exit early - don't proceed with chat request
+              } else {
+                // Log other errors but continue with chat request
+                console.error("Rate limit check failed, but continuing:", error)
+              }
+            }
+          }
+
+          // Update session activity
+          sessionStateManager.updateSessionActivity(state.sessionId)
+          return true
+        }
+
+        // Step 1: Initialize comparison session
         const messages = [{
           role: userMessage.role,
           content: userMessage.content
         }]
 
-        const comparisonInit = await apiClient.initializeComparison({
-          messages,
-          model_keys: [leftModel.id, rightModel.id],
-          function_definitions: functionDefinitions,
-          apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
-        })
+        // Run background tasks and comparison init in parallel
+        const [shouldProceed, comparisonInit] = await Promise.all([
+          backgroundTasks(),
+          apiClient.initializeComparison({
+            messages,
+            model_keys: [leftModel.id, rightModel.id],
+            function_definitions: functionDefinitions,
+            apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
+          })
+        ])
 
-        // Step 2: If initialization succeeds, update UI state
-        setState((prev) => ({
-          ...prev,
-          leftChat: {
-            ...prev.leftChat,
-            messages: [...prev.leftChat.messages, userMessage, leftAssistantMessage],
-            isLoading: true,
-            error: null,
-          },
-          rightChat: {
-            ...prev.rightChat,
-            messages: [...prev.rightChat.messages, userMessage, rightAssistantMessage],
-            isLoading: true,
-            error: null,
-          },
-          speedTestError: undefined,
-        }))
+        if (!shouldProceed) {
+          return // Exit early if rate limited
+        }
 
         // Update state with comparison ID
         setState(prev => ({

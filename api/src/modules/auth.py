@@ -1,9 +1,6 @@
 import re
-import aiohttp
 from fastapi import HTTPException, Request
 from typing import Optional
-
-from src.constants.configs import APP_CONFIG
 from src.logger import logger
 
 
@@ -56,38 +53,6 @@ def validate_fireworks_api_key_format(api_key: str) -> bool:
     return bool(re.match(fireworks_api_key_pattern, api_key))
 
 
-async def test_api_key_with_fireworks(api_key: str) -> bool:
-    """
-    Test if API key works with Fireworks API by making a simple request.
-
-    This makes a lightweight request to the Fireworks API to verify
-    the API key is valid and not expired.
-
-    Args:
-        api_key: The API key to test
-
-    Returns:
-        bool: True if API key is valid, False otherwise
-    """
-    try:
-        async with aiohttp.ClientSession() as session:
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            }
-
-            async with session.get(
-                APP_CONFIG["web_app_model_library_url"],
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=2),
-            ) as response:
-                return response.status == 200
-
-    except Exception as e:
-        logger.debug(f"API key validation failed: {str(e)[:100]}...")
-        return False
-
-
 async def get_validated_api_key(request: Request) -> str:
     """
     Extract and validate API key from request with comprehensive checks.
@@ -114,13 +79,6 @@ async def get_validated_api_key(request: Request) -> str:
                 status_code=401,
                 detail="Invalid API key format. Expected: fw_ followed by 24 alphanumeric characters",
             )
-
-        if not await test_api_key_with_fireworks(api_key):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or expired API key. Please check your Fireworks API key.",
-            )
-
         return api_key
 
     except HTTPException:
