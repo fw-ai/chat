@@ -250,14 +250,15 @@ async def get_available_models(
 
         logger.info(f"Total models available: {len(models)}")
 
-        if function_calling is True:
+        if function_calling:
             # Only show models that support function calling
             filtered_models = {}
             for key, model in models.items():
-                model_supports_fc = model.get("function_calling", False)
+                model_supports_fc = model.get("supportsTools", False)
                 if model_supports_fc:
                     filtered_models[key] = model
             models = filtered_models
+            print(filtered_models)
             logger.info(
                 f"Function calling filter applied (true), filtered to {len(models)} models with function calling support"
             )
