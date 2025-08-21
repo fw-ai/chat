@@ -258,7 +258,6 @@ async def get_available_models(
                 if model_supports_fc:
                     filtered_models[key] = model
             models = filtered_models
-            print(filtered_models)
             logger.info(
                 f"Function calling filter applied (true), filtered to {len(models)} models with function calling support"
             )
@@ -269,8 +268,8 @@ async def get_available_models(
             )
         else:
             logger.info("No function calling filter applied")
-
-        return {"models": models}
+        _sorted_models = {k: models[k] for k in sorted(models, reverse=True)}
+        return {"models": _sorted_models}
     except HTTPException:
         raise
     except Exception as e:

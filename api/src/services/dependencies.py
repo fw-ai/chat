@@ -1,7 +1,7 @@
 from typing import Dict, Any
 from threading import Lock
 import os
-
+from functools import lru_cache
 from src.llm_inference.llm_completion import FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.rate_limiter import DualLayerRateLimiter
@@ -203,6 +203,7 @@ def get_rate_limiter() -> DualLayerRateLimiter:
     return services.rate_limiter
 
 
+@lru_cache(maxsize=1)
 def get_models() -> Dict[str, Any]:
     """FastAPI dependency to get models dictionary"""
     try:
