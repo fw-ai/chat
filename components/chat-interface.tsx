@@ -76,17 +76,6 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
   return (
     <div className="h-full flex flex-col relative">
 
-      {/* Top bar with model selection only */}
-      <div className="flex items-center p-4 border-b bg-background">
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          className="w-full"
-          disabled={false} // No longer disable based on API key
-          apiKey={apiKey}
-          functionCallingEnabled={functionCallingEnabled}
-        />
-      </div>
 
 
 
@@ -113,8 +102,21 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
 
           {error && !rateLimitInfo?.isRateLimited && <div className="p-4 bg-destructive/10 text-destructive text-sm border-t">{error}</div>}
 
-          {/* Input area with send and clear buttons */}
+          {/* Model selector and input area */}
           <div className="p-4 border-t bg-background">
+            {/* Model selector */}
+            <div className="mb-3">
+              <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
+                className="w-full max-w-sm ml-auto"
+                disabled={false}
+                apiKey={apiKey}
+                functionCallingEnabled={functionCallingEnabled}
+              />
+            </div>
+
+            {/* Input area with send and clear buttons */}
             <div className="flex gap-2 mb-3">
               <ChatInput
                 onSendMessage={handleSendMessage}

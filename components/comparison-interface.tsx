@@ -81,29 +81,6 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
 
 
 
-      {/* Model selectors row */}
-      <div className="flex border-b">
-        <div className="w-1/2 p-4 border-r bg-muted/30">
-          <ModelSelector
-            selectedModel={leftModel}
-            onModelChange={setLeftModel}
-            className="w-full"
-            disabled={false}
-            apiKey={apiKey}
-            functionCallingEnabled={functionCallingEnabled}
-          />
-        </div>
-        <div className="w-1/2 p-4 bg-muted/30">
-          <ModelSelector
-            selectedModel={rightModel}
-            onModelChange={setRightModel}
-            className="w-full"
-            disabled={false}
-            apiKey={apiKey}
-            functionCallingEnabled={functionCallingEnabled}
-          />
-        </div>
-      </div>
 
       {/* Synchronized messages area */}
       <div className="flex-1 overflow-y-auto">
@@ -261,8 +238,33 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
         </div>
       )}
 
-      {/* Shared input at the bottom with send and clear buttons */}
+      {/* Model selectors and shared input at the bottom */}
       <div className="p-4 border-t bg-background">
+        {/* Model selectors row */}
+        <div className="flex gap-4 mb-3">
+          <div className="w-1/2">
+            <ModelSelector
+              selectedModel={leftModel}
+              onModelChange={setLeftModel}
+              className="w-full"
+              disabled={false}
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
+            />
+          </div>
+          <div className="w-1/2">
+            <ModelSelector
+              selectedModel={rightModel}
+              onModelChange={setRightModel}
+              className="w-full"
+              disabled={false}
+              apiKey={apiKey}
+              functionCallingEnabled={functionCallingEnabled}
+            />
+          </div>
+        </div>
+
+        {/* Input area with send and clear buttons */}
         <div className="flex gap-2 mb-3">
           <ChatInput
             onSendMessage={handleSendMessage}

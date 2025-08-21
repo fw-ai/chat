@@ -71,7 +71,7 @@ export function ModelSelector({
           )}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent side="top" align="end">
         {models.map((model) => (
           <SelectItem key={model.id} value={model.id}>
             <div className="flex items-center gap-2">
