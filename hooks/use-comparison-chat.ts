@@ -8,7 +8,7 @@ import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 import { useRateLimit } from "@/hooks/use-rate-limit"
 
-export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string, functionDefinitions?: any[]) {
+export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel, speedTestEnabled = false, concurrency = 1, apiKey?: string, functionDefinitions?: any[], openaiApiKey?: string) {
   const [state, setState] = useState<ComparisonChatState>({
     leftChat: { messages: [], isLoading: false, error: null },
     rightChat: { messages: [], isLoading: false, error: null },
@@ -297,7 +297,9 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
           }
 
           // Update session activity
-          sessionStateManager.updateSessionActivity(state.sessionId)
+          if (state.sessionId) {
+            sessionStateManager.updateSessionActivity(state.sessionId)
+          }
           return true
         }
 
@@ -315,6 +317,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
             model_keys: [leftModel.id, rightModel.id],
             function_definitions: functionDefinitions,
             apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
+            openaiApiKey: openaiApiKey, // Pass OpenAI API key for OpenAI models
           })
         ])
 
@@ -347,6 +350,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
               apiKey: hasValidApiKey ? apiKey : undefined,
+              openaiApiKey: openaiApiKey,
             }, comparisonId, leftAbortController.signal)
 
             let leftContent = ""
@@ -475,6 +479,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
               conversation_id: state.sessionId,
               function_definitions: functionDefinitions,
               apiKey: hasValidApiKey ? apiKey : undefined,
+              openaiApiKey: openaiApiKey,
             }, comparisonId, rightAbortController.signal)
 
             let rightContent = ""
@@ -605,6 +610,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
                 comparison_id: comparisonId,
                 concurrency: speedTestEnabled ? concurrency : undefined,
                 apiKey: hasValidApiKey ? apiKey : undefined,
+                openaiApiKey: openaiApiKey,
               })
 
               let lastMetricsUpdate = 0 // Track last metrics update time for throttling
@@ -728,7 +734,7 @@ export function useComparisonChat(leftModel?: ChatModel, rightModel?: ChatModel,
         }
       }
     },
-    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions, rateLimitInfo, resetRateLimit, handleRateLimitError],
+    [leftModel, rightModel, conversationId, speedTestEnabled, concurrency, state.sessionId, apiKey, functionDefinitions, openaiApiKey, rateLimitInfo, resetRateLimit, handleRateLimitError],
   )
 
   const clearChat = useCallback(() => {

@@ -1,6 +1,6 @@
 import pytest
 import os
-from src.llm_inference.llm_completion import FireworksStreamer
+from src.llm_inference.llm_completion import LLMStreamer
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +18,7 @@ def api_key():
 @pytest.fixture
 def streamer(api_key):
     """Create FireworksStreamer instance"""
-    return FireworksStreamer(api_key)
+    return LLMStreamer(api_key)
 
 
 @pytest.mark.asyncio

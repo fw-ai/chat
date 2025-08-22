@@ -46,7 +46,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
     dismissUpgradePrompt,
     resetRateLimit,
     clearError
-  } = useChat(selectedModel, apiKey, functionDefinitions)
+  } = useChat(selectedModel, apiKey, functionDefinitions, openaiApiKey)
 
   // Expose clearChat function to parent component
   useEffect(() => {

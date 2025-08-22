@@ -41,7 +41,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
     }
   }, [models, modelsLoading, leftModel, rightModel, setLeftModel, setRightModel])
 
-  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey, functionDefinitions)
+  const comparisonChat = useComparisonChat(leftModel, rightModel, speedTestEnabled, concurrency, apiKey, functionDefinitions, openaiApiKey)
   const { rateLimitInfo, showUpgradePrompt, dismissUpgradePrompt, resetRateLimit, clearError } = comparisonChat
 
   // Expose clearChat function to parent component

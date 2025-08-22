@@ -63,6 +63,7 @@ defaults:
   timeout: 70
 
 base_url: https://api.fireworks.ai/inference/v1
+openai_base_url: https://api.openai.com/v1
 web_app_model_library_url: https://app.fireworks.ai/api/models
 
 rate_limiting:

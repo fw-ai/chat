@@ -1,7 +1,7 @@
 import pytest
 import os
 from unittest.mock import patch
-from src.llm_inference.llm_completion import FireworksStreamer, StreamingStats
+from src.llm_inference.llm_completion import LLMStreamer, StreamingStats
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,7 +19,7 @@ def api_key():
 @pytest.fixture
 def streamer(api_key):
     """Create FireworksStreamer instance"""
-    return FireworksStreamer(api_key)
+    return LLMStreamer(api_key)
 
 
 class MockLLMChunk:

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from src.llm_inference.benchmark import FireworksBenchmarkService
-from src.llm_inference.llm_completion import FireworksStreamer
+from src.llm_inference.llm_completion import LLMStreamer
 
 
 class SpeedTestComparisonRequest(BaseModel):
@@ -26,7 +26,7 @@ class TestSpeedTestIntegration:
         """Setup test environment"""
         self.api_key = "test_api_key"  # pragma: allowlist secret
         self.benchmark_service = FireworksBenchmarkService(self.api_key)
-        self.streamer = FireworksStreamer(self.api_key)
+        self.streamer = LLMStreamer(self.api_key)
 
         # Mock models for testing
         self.test_models = ["llama_scout", "qwen3_235b_2507"]

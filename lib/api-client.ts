@@ -15,6 +15,7 @@ export interface ChatRequest {
   conversation_id?: string
   function_definitions?: any[]
   apiKey?: string
+  openaiApiKey?: string
 }
 
 // Internal interface for backend API
@@ -33,6 +34,7 @@ export interface ComparisonInitRequest {
   model_keys: string[]
   function_definitions?: any[]
   apiKey?: string
+  openaiApiKey?: string
 }
 
 interface BackendComparisonInitRequest {
@@ -55,6 +57,7 @@ export interface MetricsRequest {
   temperature?: number
   prompt?: string
   apiKey?: string
+  openaiApiKey?: string
 }
 
 interface BackendMetricsRequest {
@@ -258,7 +261,7 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseURL}/chat/compare/init`, {
       method: "POST",
-      headers: this.getHeaders(request.apiKey),
+      headers: this.getHeaders(request.apiKey, request.openaiApiKey),
       body: JSON.stringify(backendRequest),
     })
 
@@ -281,7 +284,7 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseURL}/chat/single`, {
       method: "POST",
-      headers: this.getHeaders(request.apiKey),
+      headers: this.getHeaders(request.apiKey, request.openaiApiKey),
       body: JSON.stringify(backendRequest),
       signal,
     })
@@ -329,7 +332,7 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseURL}/chat/metrics`, {
       method: "POST",
-      headers: this.getHeaders(request.apiKey),
+      headers: this.getHeaders(request.apiKey, request.openaiApiKey),
       body: JSON.stringify(backendRequest),
     })
 

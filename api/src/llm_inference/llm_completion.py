@@ -127,72 +127,44 @@ class FireworksConfig:
     """Configuration loader for Fireworks models"""
 
     def __init__(self):
-        self.config = APP_CONFIG
+        self.config = WEB_APP_MODEL_URL
 
-    def get_model(self, model_id: str) -> Dict[str, Any]:
+    def get_model(self, model_id: str) -> Dict[str, str]:
         """Get model configuration by model ID"""
-        logger.info(f"get_model called with: {model_id}")
-        logger.info(f"MARKETING_CONFIG keys: {list(WEB_APP_MODEL_URL.keys())}")
+        logger.info(f"Getting model config for: {model_id}")
+        if model_id in self.config["openai_models"]:
+            return {"id": model_id, "link": model_id}
+        else:
+            return {"id": model_id, "link": f"accounts/fireworks/models/{model_id}"}
 
-        # First check if this is already a model ID in marketing config
-        if model_id in WEB_APP_MODEL_URL:
-            logger.info(f"Found {model_id} in marketing config")
-            # Get the marketing data to extract the proper model ID from the link
-            marketing_data = WEB_APP_MODEL_URL[model_id]
-            link = marketing_data.get("link", "")
-
-            # Extract model ID from link: "/models/fireworks/model-name" -> "accounts/fireworks/models/model-name"
-            if link.startswith("/models/fireworks/"):
-                fireworks_model_id = f"accounts/fireworks/models/{link.split('/')[-1]}"
-                logger.info(f"Extracted Fireworks model ID: {fireworks_model_id}")
-
-                # Return a config with the proper Fireworks model ID
-                return {"id": fireworks_model_id, "original_id": model_id, "link": link}
-            else:
-                logger.warning(f"Unexpected link format: {link}")
-                # Fallback to original behavior
-                for model_key, model_config in self.config["models"].items():
-                    if model_config["id"] == model_id:
-                        logger.info(
-                            f"Found matching config for {model_id}: {model_config}"
-                        )
-                        return model_config
-                raise ValueError(
-                    f"Model ID {model_id} found in marketing config but not in local config"
-                )
-
-        # If not found in marketing config, maybe it's a model key
-        if model_id in self.config["models"]:
-            logger.info(f"Found {model_id} as model key in local config")
-            return self.config["models"][model_id]
-
-        logger.error(f"Model {model_id} not found anywhere")
-        raise ValueError(f"Model {model_id} not found in config")
-
-    @staticmethod
-    def get_all_models() -> Dict[str, Dict[str, Any]]:
+    def get_all_models(self) -> Dict[str, Dict[str, Any]]:
         """Get all available models"""
-        return WEB_APP_MODEL_URL
+        return self.config
 
     def get_defaults(self) -> Dict[str, Any]:
         """Get default settings"""
         return self.config.get("defaults", {})
 
 
-class FireworksStreamer:
-    """Helper class for streaming responses from Fireworks"""
+class LLMStreamer:
+    """Helper class for streaming responses from Fireworks and OpenAI"""
 
-    def __init__(self, api_key: Optional[str] = None):
-        # Use provided API key or fall back to environment variable for free tier
+    def __init__(
+        self, api_key: Optional[str] = None, openai_api_key: Optional[str] = None
+    ):
         import os
 
-        self.api_key = api_key or os.getenv("FIREWORKS_API_KEY")
-        if not self.api_key:
+        self.fireworks_api_key = api_key or os.getenv("FIREWORKS_API_KEY")
+        self.openai_api_key = openai_api_key
+
+        if not self.fireworks_api_key:
             raise ValueError(
-                "No API key provided and FIREWORKS_API_KEY environment variable not set"
+                "No Fireworks API key provided and FIREWORKS_API_KEY environment variable not set"
             )
+
         self.config = FireworksConfig()
         self.base_url = APP_CONFIG["base_url"]
+        self.openai_base_url = APP_CONFIG["openai_base_url"]
         self.session = None
 
     async def __aenter__(self):
@@ -233,6 +205,28 @@ class FireworksStreamer:
 
         return self.session
 
+    @staticmethod
+    def _is_openai_model(model_key: str) -> bool:
+        """Check if model is an OpenAI model"""
+        openai_model_ids = {
+            model_info["id"] for model_info in APP_CONFIG["openai_models"].values()
+        }
+        return model_key in openai_model_ids
+
+    def _get_api_key_for_model(self, model_key: str) -> str:
+        """Get appropriate API key for the model"""
+        if self._is_openai_model(model_key):
+            if not self.openai_api_key:
+                raise ValueError(f"OpenAI API key required for model: {model_key}")
+            return self.openai_api_key
+        return self.fireworks_api_key
+
+    def _get_base_url_for_model(self, model_key: str) -> str:
+        """Get appropriate base URL for the model"""
+        return (
+            self.openai_base_url if self._is_openai_model(model_key) else self.base_url
+        )
+
     def _prepare_llm_request(
         self,
         request_id: Optional[str],
@@ -249,29 +243,44 @@ class FireworksStreamer:
 
         return request_id, temperature, stats
 
-    def _prepare_headers(self) -> Dict[str, str]:
+    def _prepare_headers(self, model_key: str) -> Dict[str, str]:
         """Prepare headers for API request"""
+        api_key = self._get_api_key_for_model(model_key)
         return {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
         }
 
     @staticmethod
     def _prepare_base_payload(
-        model_config: Dict[str, Any],
+        model_id: str,
         temperature: float,
         enable_perf_metrics: bool,
         function_definitions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Prepare base payload common to both completion types"""
-        payload = {
-            "model": model_config["id"],
-            "temperature": temperature,
-            "stream": True,
-            "max_tokens": _MAX_TOKENS,
-        }
-
+        if model_id in WEB_APP_MODEL_URL["openai_models"]:
+            if "gpt-5" in model_id:
+                payload = {
+                    "model": model_id,
+                    "stream": True,
+                    "max_completion_tokens": _MAX_TOKENS,
+                }
+            else:
+                payload = {
+                    "model": model_id,
+                    "temperature": temperature,
+                    "stream": True,
+                    "max_completion_tokens": _MAX_TOKENS,
+                }
+        else:
+            payload = {
+                "model": model_id,
+                "temperature": temperature,
+                "stream": True,
+                "max_tokens": _MAX_TOKENS,
+            }
         if function_definitions and len(function_definitions) > 0:
             tools = [
                 {"type": "function", "function": func_def}
@@ -356,13 +365,13 @@ class FireworksStreamer:
         stats: StreamingStats,
         callback: Optional[Callable[[str, StreamingStats], None]],
         enable_perf_metrics: bool,
+        model_key: str,
         is_chat: bool = False,
         include_tools: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Core streaming logic shared between completion types"""
         session = None
 
-        # Track tool calls across chunks
         accumulated_tool_calls = {}
 
         try:
@@ -376,8 +385,9 @@ class FireworksStreamer:
                 else:
                     raise
 
-            headers = self._prepare_headers()
-            url = f"{self.base_url}/{endpoint}"
+            headers = self._prepare_headers(model_key)
+            base_url = self._get_base_url_for_model(model_key)
+            url = f"{base_url}/{endpoint}"
 
             async with session.post(url, headers=headers, json=payload) as response:
                 response.raise_for_status()
@@ -391,12 +401,10 @@ class FireworksStreamer:
                     )
                     stats.update_usage_from_chunk(chunk_data)
 
-                    # Process tool calls if present
                     if include_tools and tool_calls_delta:
                         for tool_call in tool_calls_delta:
                             index = tool_call.get("index", 0)
 
-                            # Initialize this tool call if we haven't seen it
                             if index not in accumulated_tool_calls:
                                 accumulated_tool_calls[index] = {
                                     "id": "",
@@ -405,11 +413,9 @@ class FireworksStreamer:
                                     "type": "function",
                                 }
 
-                            # Update tool call ID if provided
                             if tool_call.get("id"):
                                 accumulated_tool_calls[index]["id"] = tool_call["id"]
 
-                            # Update function name if provided
                             if tool_call.get("function") and tool_call["function"].get(
                                 "name"
                             ):
@@ -417,7 +423,6 @@ class FireworksStreamer:
                                     "function"
                                 ]["name"]
 
-                            # Accumulate arguments if provided
                             if tool_call.get("function") and tool_call["function"].get(
                                 "arguments"
                             ):
@@ -434,11 +439,9 @@ class FireworksStreamer:
                         if include_tools:
                             result["content"] = text
                         else:
-                            # Legacy mode: yield just the text string
                             yield {"text": text}
                             continue
 
-                    # Send accumulated tool calls when we have a finish reason of "tool_calls"
                     if (
                         include_tools
                         and finish_reason == "tool_calls"
@@ -523,15 +526,20 @@ class FireworksStreamer:
         request_id, temperature, stats = self._prepare_llm_request(
             request_id, temperature, "req"
         )
-
-        model_config = self.config.get_model(model_key)
         payload = self._prepare_base_payload(
-            model_config, temperature, enable_perf_metrics
+            model_id=self.config.get_model(model_key)["link"],
+            temperature=temperature,
+            enable_perf_metrics=enable_perf_metrics,
         )
         payload["prompt"] = add_user_request_to_prompt(prompt)
-
         async for chunk in self._stream_request(
-            "completions", payload, stats, callback, enable_perf_metrics, is_chat=False
+            "completions",
+            payload,
+            stats,
+            callback,
+            enable_perf_metrics,
+            model_key,
+            is_chat=False,
         ):
             yield chunk.get("text", "")
 
@@ -566,12 +574,10 @@ class FireworksStreamer:
             request_id, temperature, "chat"
         )
 
-        model_config = self.config.get_model(model_key)
         logger.info(f"Model key received: {model_key}")
-        logger.info(f"Model config: {model_config}")
 
         payload = self._prepare_base_payload(
-            model_config=model_config,
+            model_id=self.config.get_model(model_key)["link"],
             temperature=temperature,
             enable_perf_metrics=enable_perf_metrics,
             function_definitions=function_definitions,
@@ -585,6 +591,7 @@ class FireworksStreamer:
             stats,
             callback,
             enable_perf_metrics,
+            model_key,
             is_chat=True,
             include_tools=include_tools,
         ):
@@ -606,7 +613,7 @@ class FireworksBenchmark:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.config = FireworksConfig()
-        self.streamer = FireworksStreamer(api_key)
+        self.streamer = LLMStreamer(api_key)
 
     async def _execute_single_request(
         self, req_id: int, model_key: str, prompt: str, temperature: float
@@ -625,7 +632,7 @@ class FireworksBenchmark:
             )
 
         try:
-            async with FireworksStreamer(self.api_key) as streamer:
+            async with LLMStreamer(self.api_key) as streamer:
                 completion_text = ""
                 async for chunk in streamer.stream_completion(
                     model_key=model_key,
@@ -670,7 +677,7 @@ class FireworksBenchmark:
 
         if not successful_results:
             return {
-                "model": self.config.get_model(model_key)["name"],
+                "model": self.config.get_model(model_key),
                 "concurrency": concurrency,
                 "total_requests": concurrency,
                 "successful_requests": 0,
@@ -689,7 +696,7 @@ class FireworksBenchmark:
         aggregate_tps = total_tokens / total_time if total_time > 0 else 0
 
         return {
-            "model": self.config.get_model(model_key)["name"],
+            "model": self.config.get_model(model_key),
             "concurrency": concurrency,
             "total_requests": concurrency,
             "successful_requests": len(successful_results),

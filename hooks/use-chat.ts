@@ -8,7 +8,7 @@ import { sessionStateManager } from "@/lib/session-state"
 import { chatPersistenceManager } from "@/lib/chat-persistence"
 import { useRateLimit } from "@/hooks/use-rate-limit"
 
-export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?: any[]) {
+export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?: any[], openaiApiKey?: string) {
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -224,7 +224,9 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         }
 
         // Update session activity
-        sessionStateManager.updateSessionActivity(state.sessionId)
+        if (state.sessionId) {
+          sessionStateManager.updateSessionActivity(state.sessionId)
+        }
         return true
       }
 
@@ -252,6 +254,7 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
           conversation_id: state.sessionId, // Use session ID for conversation continuity
           function_definitions: functionDefinitions,
           apiKey: hasValidApiKey ? apiKey : undefined, // Pass API key if valid, otherwise undefined for free tier
+          openaiApiKey: openaiApiKey, // Pass OpenAI API key for OpenAI models
         }, undefined, abortController.signal)
 
         let fullContent = ""
@@ -402,7 +405,7 @@ export function useChat(model?: ChatModel, apiKey?: string, functionDefinitions?
         }
       }
     },
-    [model, conversationId, state.sessionId, apiKey, functionDefinitions, rateLimitInfo, resetRateLimit, handleRateLimitError],
+    [model, conversationId, state.sessionId, apiKey, functionDefinitions, openaiApiKey, rateLimitInfo, resetRateLimit, handleRateLimitError],
   )
 
   const clearChat = useCallback(() => {

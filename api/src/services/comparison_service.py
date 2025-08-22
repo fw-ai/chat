@@ -21,56 +21,51 @@ class MetricsStreamer:
         temperature: float = 0.7,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream live metrics as they are generated."""
+        logger.info("Streaming live metrics for models")
+        # Create metrics queue for live streaming
+        metrics_queue = asyncio.Queue()
 
-        try:
-            # Create metrics queue for live streaming
-            metrics_queue = asyncio.Queue()
+        async def metrics_callback(metrics: Dict[str, Any]):
+            await metrics_queue.put(metrics)
 
-            async def metrics_callback(metrics: Dict[str, Any]):
-                await metrics_queue.put(metrics)
-
-            # Start benchmark task
-            benchmark_task = asyncio.create_task(
-                self.benchmark_service.run_live_comparison_benchmark(
-                    model_keys=model_keys,
-                    prompt=prompt,
-                    concurrency=concurrency,
-                    max_tokens=100,
-                    temperature=temperature,
-                    live_metrics_callback=metrics_callback,
-                )
+        # Start benchmark task
+        benchmark_task = asyncio.create_task(
+            self.benchmark_service.run_live_comparison_benchmark(
+                model_keys=model_keys,
+                prompt=prompt,
+                concurrency=concurrency,
+                max_tokens=100,
+                temperature=temperature,
+                live_metrics_callback=metrics_callback,
             )
+        )
 
-            # Stream metrics as they arrive
-            while not benchmark_task.done():
-                try:
-                    metrics = await asyncio.wait_for(metrics_queue.get(), timeout=0.1)
-                    yield {"type": "live_metrics", "metrics": metrics}
-                except asyncio.TimeoutError:
-                    continue
+        # Stream metrics as they arrive
+        while not benchmark_task.done():
+            try:
+                metrics = await asyncio.wait_for(metrics_queue.get(), timeout=0.1)
+                yield {"type": "live_metrics", "metrics": metrics}
+            except asyncio.TimeoutError:
+                continue
 
-            # Drain remaining metrics
-            while not metrics_queue.empty():
-                try:
-                    metrics = metrics_queue.get_nowait()
-                    yield {"type": "live_metrics", "metrics": metrics}
-                except asyncio.QueueEmpty:
-                    break
+        # Drain remaining metrics
+        while not metrics_queue.empty():
+            try:
+                metrics = metrics_queue.get_nowait()
+                yield {"type": "live_metrics", "metrics": metrics}
+            except asyncio.QueueEmpty:
+                break
 
-            # Get final results
-            benchmark_results = await benchmark_task
+        # Get final results
+        benchmark_results = await benchmark_task
 
-            if benchmark_results:
-                yield {
-                    "type": "speed_test_results",
-                    "results": self._format_benchmark_results(
-                        benchmark_results, model_keys, concurrency
-                    ),
-                }
-
-        except Exception as e:
-            logger.error(f"Error in metrics streaming: {str(e)}")
-            yield {"type": "speed_test_error", "error": str(e)}
+        if benchmark_results:
+            yield {
+                "type": "speed_test_results",
+                "results": self._format_benchmark_results(
+                    benchmark_results, model_keys, concurrency
+                ),
+            }
 
     def _format_benchmark_results(
         self, results: Dict[str, Any], model_keys: List[str], concurrency: int

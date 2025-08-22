@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import json
 import uuid
 
-from src.llm_inference.llm_completion import FireworksStreamer, FireworksConfig
+from src.llm_inference.llm_completion import LLMStreamer, FireworksConfig
 from src.modules.session import SessionManager
 from src.modules.auth import (
     get_validated_api_key,
@@ -28,6 +28,7 @@ from src.llm_inference.utils import (
     add_function_calling_to_prompt,
     add_user_request_to_prompt,
 )
+from src.constants.configs import FIREWORKS_MODELS_DICT
 from src.llm_inference.llm_completion import DEFAULT_TEMPERATURE
 
 app = FastAPI(
@@ -147,18 +148,17 @@ async def _stream_response_with_session(
     client_api_key: Optional[str],
     session_manager: SessionManager,
     function_definitions: Optional[List[Dict[str, Any]]] = None,
+    openai_api_key: Optional[str] = None,
 ):
     """Helper to stream chat responses and save assistant responses to session."""
     assistant_content = ""
 
     try:
-        client_streamer = FireworksStreamer(client_api_key)
+        client_streamer = LLMStreamer(client_api_key, openai_api_key)
 
-        # Get the latest user message to format with appropriate prompt
         if messages and messages[-1].get("role") == "user":
             user_request = messages[-1]["content"]
 
-            # Use function calling prompt if function definitions are provided, otherwise default prompt
             if function_definitions and len(function_definitions) > 0:
                 logger.info("Using function calling prompt with function definitions")
                 formatted_prompt = add_function_calling_to_prompt(
@@ -239,7 +239,7 @@ async def root():
 
 
 @app.get("/models")
-async def en(
+async def get_models_dropdown(
     request: Request,
     function_calling: Optional[bool] = None,
     models: Annotated[Dict[str, Any], Depends(get_models)] = None,
@@ -255,18 +255,7 @@ async def en(
 
         openai_api_key = extract_openai_api_key_from_request(request)
         if not openai_api_key:
-            openai_model_ids = set()
-            if hasattr(config, "config") and "openai_models" in config.config:
-                openai_model_ids = {
-                    model_info["id"]
-                    for model_info in config.config["openai_models"].values()
-                }
-
-            models = {
-                key: model
-                for key, model in models.items()
-                if key not in openai_model_ids
-            }
+            models = FIREWORKS_MODELS_DICT
             logger.info("Filtered out OpenAI models (no API key)")
 
         if function_calling:
@@ -278,7 +267,8 @@ async def en(
                     filtered_models[key] = model
             models = filtered_models
             logger.info(
-                f"Function calling filter applied (true), filtered to {len(models)} models with function calling support"
+                "Function calling filter applied (true), "
+                f"filtered to {len(models)} models with function calling support"
             )
         elif function_calling is False:
             # Show all models when function_calling=false
@@ -417,9 +407,8 @@ async def single_chat(
             session_type = "single"
             primary_id = session_id
 
-        # Check authentication only (rate limiting handled by /api/count-message)
         client_api_key = await check_auth_only(http_request)
-
+        openai_api_key = extract_openai_api_key_from_request(http_request)
         logger.info(
             f"Chat request - Type: {session_type}, Session: {session_id}, "
             f"API key: {get_api_key_safe_for_logging(client_api_key)}"
@@ -466,6 +455,7 @@ async def single_chat(
                 client_api_key=client_api_key,
                 session_manager=session_manager,
                 function_definitions=request.function_definitions,
+                openai_api_key=openai_api_key,
             ),
             media_type="text/event-stream",
             headers={
@@ -523,17 +513,13 @@ async def stream_metrics(
 
         async def stream_metrics_data():
             """Stream metrics data with proper error handling"""
-            try:
-                async for data in metrics_streamer.stream_live_metrics(
-                    model_keys=request.model_keys,
-                    prompt=prompt,
-                    concurrency=request.concurrency,
-                    temperature=request.temperature or 0.7,
-                ):
-                    yield f"data: {json.dumps(data)}\n\n"
-            except Exception as e:
-                logger.error(f"Error in metrics streaming: {str(e)}")
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            async for data in metrics_streamer.stream_live_metrics(
+                model_keys=request.model_keys,
+                prompt=prompt,
+                concurrency=request.concurrency,
+                temperature=request.temperature or 0.7,
+            ):
+                yield f"data: {json.dumps(data)}\n\n"
 
         return StreamingResponse(
             stream_metrics_data(),

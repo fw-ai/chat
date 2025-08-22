@@ -94,153 +94,6 @@ class FireworksBenchmarkService:
         self.config = FireworksConfig()
         self.benchmark = FireworksBenchmark(api_key)
 
-    async def run_single_benchmark(
-        self,
-        request: BenchmarkRequest,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
-    ) -> BenchmarkResult:
-        """
-        Run a single benchmark test
-
-        Args:
-            request: Benchmark configuration
-            progress_callback: Optional callback for progress updates
-
-        Returns:
-            BenchmarkResult with comprehensive metrics
-        """
-        model_config = self.config.get_model(request.model_key)
-        start_time = time.time()
-
-        if progress_callback:
-            progress_callback(
-                "starting",
-                {
-                    "model": model_config["name"],
-                    "concurrency": request.concurrency,
-                    "status": "Initializing benchmark...",
-                },
-            )
-
-        try:
-            # Run the concurrent benchmark
-            raw_results = await self.benchmark.run_concurrent_benchmark(
-                model_key=request.model_key,
-                prompt=request.prompt,
-                concurrency=request.concurrency,
-                temperature=request.temperature,
-            )
-
-            # Extract individual results and calculate advanced metrics
-            individual_results = raw_results.get("individual_results", [])
-            successful_results = [
-                r for r in individual_results if r.get("tokens", 0) > 0
-            ]
-            error_results = [r for r in individual_results if "error" in r]
-
-            # Calculate peak TPS
-            peak_tps = (
-                max([r.get("tps", 0) for r in successful_results])
-                if successful_results
-                else 0
-            )
-
-            # Calculate completion lengths
-            completion_lengths = [
-                len(r.get("completion_text", "")) for r in successful_results
-            ]
-
-            # Extract error messages
-            error_messages = [r.get("error", "") for r in error_results]
-
-            # Calculate average tokens per request
-            avg_tokens_per_request = (
-                sum(r.get("tokens", 0) for r in successful_results)
-                / len(successful_results)
-                if successful_results
-                else 0
-            )
-
-            result = BenchmarkResult(
-                model_name=model_config["name"],
-                model_id=model_config["id"],
-                concurrency=request.concurrency,
-                prompt=request.prompt,
-                total_time=raw_results["total_time"],
-                avg_time_to_first_token=raw_results["avg_time_to_first_token"],
-                avg_tokens_per_second=raw_results["avg_tokens_per_second"],
-                aggregate_tokens_per_second=raw_results["aggregate_tokens_per_second"],
-                peak_tokens_per_second=peak_tps,
-                total_requests=raw_results["total_requests"],
-                successful_requests=raw_results["successful_requests"],
-                error_rate=raw_results["error_rate"],
-                total_tokens_generated=raw_results["total_tokens"],
-                avg_tokens_per_request=avg_tokens_per_request,
-                sample_completion=raw_results.get("sample_completion", ""),
-                completion_lengths=completion_lengths,
-                individual_results=individual_results,
-                error_messages=error_messages,
-                timestamp=start_time,
-                config_used={
-                    "max_tokens": request.max_tokens,
-                    "temperature": request.temperature,
-                    "model_config": model_config,
-                },
-            )
-
-            if progress_callback:
-                progress_callback(
-                    "completed",
-                    {
-                        "model": model_config["name"],
-                        "results": result.to_dict(),
-                        "status": "Benchmark completed successfully",
-                    },
-                )
-
-            return result
-
-        except Exception as e:
-            error_msg = f"Benchmark failed: {str(e)}"
-            logger.error(error_msg)
-
-            if progress_callback:
-                progress_callback(
-                    "error",
-                    {
-                        "model": model_config["name"],
-                        "error": error_msg,
-                        "status": "Benchmark failed",
-                    },
-                )
-
-            return BenchmarkResult(
-                model_name=model_config["name"],
-                model_id=model_config["id"],
-                concurrency=request.concurrency,
-                prompt=request.prompt,
-                total_time=time.time() - start_time,
-                avg_time_to_first_token=0,
-                avg_tokens_per_second=0,
-                aggregate_tokens_per_second=0,
-                peak_tokens_per_second=0,
-                total_requests=request.concurrency,
-                successful_requests=0,
-                error_rate=1.0,
-                total_tokens_generated=0,
-                avg_tokens_per_request=0,
-                sample_completion="",
-                completion_lengths=[],
-                individual_results=[],
-                error_messages=[error_msg],
-                timestamp=start_time,
-                config_used={
-                    "max_tokens": request.max_tokens,
-                    "temperature": request.temperature,
-                    "model_config": model_config,
-                },
-            )
-
     async def run_live_comparison_benchmark(
         self,
         model_keys: List[str],
@@ -369,7 +222,7 @@ class FireworksBenchmarkService:
         progress_callback: Callable[[int, int, Dict[str, Any]], Awaitable[None]],
     ) -> BenchmarkResult:
         """Run a single benchmark with live metrics updates"""
-        model_config = self.config.get_model(request.model_key)
+        model_id = self.config.get_model(request.model_key)["link"]
         start_time = time.time()
         completed_requests = 0
         successful_results = []
@@ -539,8 +392,8 @@ class FireworksBenchmarkService:
 
         if not successful_results:
             return BenchmarkResult(
-                model_name=model_config["name"],
-                model_id=model_config["id"],
+                model_name=model_id,
+                model_id=model_id,
                 concurrency=request.concurrency,
                 prompt=request.prompt,
                 total_time=total_time,
@@ -563,7 +416,7 @@ class FireworksBenchmarkService:
                 config_used={
                     "max_tokens": request.max_tokens,
                     "temperature": request.temperature,
-                    "model_config": model_config,
+                    "model_config": model_id,
                 },
             )
 
@@ -581,8 +434,8 @@ class FireworksBenchmarkService:
         )
 
         return BenchmarkResult(
-            model_name=model_config["name"],
-            model_id=model_config["id"],
+            model_name=model_id,
+            model_id=model_id,
             concurrency=request.concurrency,
             prompt=request.prompt,
             total_time=total_time,
@@ -606,7 +459,7 @@ class FireworksBenchmarkService:
             config_used={
                 "max_tokens": request.max_tokens,
                 "temperature": request.temperature,
-                "model_config": model_config,
+                "model_config": model_id,
             },
         )
 
