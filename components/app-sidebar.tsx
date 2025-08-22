@@ -1,6 +1,6 @@
 "use client"
 
-import { MessageSquare, GitCompare, Plus, ChevronLeft, ChevronRight, Rocket, Key, Eye, EyeOff, Info, Code } from "lucide-react"
+import { MessageSquare, GitCompare, Plus, ChevronLeft, ChevronRight, Rocket, Key, Eye, EyeOff, Info, Code, ChevronDown } from "lucide-react"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import {
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { FunctionDefinitionModal } from "@/components/function-definition-modal"
 import type { FunctionDefinition } from "@/types/chat"
 import { FIREWORKS_APP_URL } from "@/lib/constants"
@@ -41,6 +42,10 @@ interface AppSidebarProps {
   onFunctionDefinitionsChange?: (functions: any[]) => void
   apiKey?: string
   onApiKeyChange?: (apiKey: string) => void
+  openaiApiKey?: string
+  onOpenaiApiKeyChange?: (apiKey: string) => void
+  anthropicApiKey?: string
+  onAnthropicApiKeyChange?: (apiKey: string) => void
 }
 
 export function AppSidebar({
@@ -54,13 +59,20 @@ export function AppSidebar({
   onFunctionCallingToggle,
   onFunctionDefinitionsChange,
   apiKey: externalApiKey = "",
-  onApiKeyChange
+  onApiKeyChange,
+  openaiApiKey = "",
+  onOpenaiApiKeyChange,
+  anthropicApiKey = "",
+  onAnthropicApiKeyChange
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar()
   const [internalApiKey, setInternalApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
+  const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false)
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false)
   const [showFunctionModal, setShowFunctionModal] = useState(false)
   const [currentFunctions, setCurrentFunctions] = useState<FunctionDefinition[]>([])
+  const [isExternalApiKeysOpen, setIsExternalApiKeysOpen] = useState(false)
 
   // Use external API key if provided, otherwise use internal state
   const apiKey = externalApiKey || internalApiKey
@@ -70,6 +82,18 @@ export function AppSidebar({
   const isValidApiKeyFormat = (key: string): boolean => {
     const fireworksApiKeyRegex = /^fw_[a-zA-Z0-9]{24}$/
     return fireworksApiKeyRegex.test(key)
+  }
+
+  // OpenAI API key validation: sk- followed by alphanumeric characters
+  const isValidOpenaiApiKeyFormat = (key: string): boolean => {
+    const openaiApiKeyRegex = /^sk-[a-zA-Z0-9]+$/
+    return openaiApiKeyRegex.test(key)
+  }
+
+  // Anthropic API key validation: sk-ant- followed by alphanumeric characters
+  const isValidAnthropicApiKeyFormat = (key: string): boolean => {
+    const anthropicApiKeyRegex = /^sk-ant-[a-zA-Z0-9-]+$/
+    return anthropicApiKeyRegex.test(key)
   }
 
   // Clear API key from memory when page unloads for security
@@ -355,6 +379,114 @@ export function AppSidebar({
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* External API Keys Section - Collapsible */}
+              {open && (
+                <Collapsible open={isExternalApiKeysOpen} onOpenChange={setIsExternalApiKeysOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="w-full justify-between p-0 h-auto">
+                      <div className="flex items-center gap-2">
+                        <Key className="h-4 w-4" />
+                        <Label className="text-sm font-medium cursor-pointer">External API Keys</Label>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          isExternalApiKeysOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    {/* OpenAI API Key */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">OpenAI</Label>
+                      <div className="relative">
+                        <Input
+                          type={showOpenaiApiKey ? "text" : "password"}
+                          placeholder="sk-..."
+                          value={openaiApiKey}
+                          onChange={(e) => onOpenaiApiKeyChange?.(e.target.value)}
+                          className={`w-full pr-10 ${
+                            openaiApiKey.trim().length > 0 && !isValidOpenaiApiKeyFormat(openaiApiKey.trim())
+                              ? 'border-destructive focus-visible:ring-destructive'
+                              : ''
+                          }`}
+                        />
+                        {openaiApiKey.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowOpenaiApiKey(!showOpenaiApiKey)}
+                            tabIndex={-1}
+                          >
+                            {showOpenaiApiKey ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {openaiApiKey.trim().length > 0 && !isValidOpenaiApiKeyFormat(openaiApiKey.trim()) && (
+                        <p className="text-xs text-destructive">
+                          Invalid format. OpenAI API key should start with "sk-"
+                        </p>
+                      )}
+                      {openaiApiKey.trim().length > 0 && isValidOpenaiApiKeyFormat(openaiApiKey.trim()) && (
+                        <p className="text-xs" style={{ color: '#6720ff' }}>
+                          ✓ Valid OpenAI API key format
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Anthropic API Key */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Anthropic</Label>
+                      <div className="relative">
+                        <Input
+                          type={showAnthropicApiKey ? "text" : "password"}
+                          placeholder="sk-ant-..."
+                          value={anthropicApiKey}
+                          onChange={(e) => onAnthropicApiKeyChange?.(e.target.value)}
+                          className={`w-full pr-10 ${
+                            anthropicApiKey.trim().length > 0 && !isValidAnthropicApiKeyFormat(anthropicApiKey.trim())
+                              ? 'border-destructive focus-visible:ring-destructive'
+                              : ''
+                          }`}
+                        />
+                        {anthropicApiKey.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowAnthropicApiKey(!showAnthropicApiKey)}
+                            tabIndex={-1}
+                          >
+                            {showAnthropicApiKey ? (
+                              <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {anthropicApiKey.trim().length > 0 && !isValidAnthropicApiKeyFormat(anthropicApiKey.trim()) && (
+                        <p className="text-xs text-destructive">
+                          Invalid format. Anthropic API key should start with "sk-ant-"
+                        </p>
+                      )}
+                      {anthropicApiKey.trim().length > 0 && isValidAnthropicApiKeyFormat(anthropicApiKey.trim()) && (
+                        <p className="text-xs" style={{ color: '#6720ff' }}>
+                          ✓ Valid Anthropic API key format
+                        </p>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
 
               {/* Function Calling Icon for collapsed state */}

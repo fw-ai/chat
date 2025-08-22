@@ -18,6 +18,8 @@ export default function App() {
   const [functionCallingEnabled, setFunctionCallingEnabled] = useState(false)
   const [functionDefinitions, setFunctionDefinitions] = useState<FunctionDefinition[]>([])
   const [apiKey, setApiKey] = useState("")
+  const [openaiApiKey, setOpenaiApiKey] = useState("")
+  const [anthropicApiKey, setAnthropicApiKey] = useState("")
   const [clearChatFn, setClearChatFn] = useState<(() => void) | null>(null)
 
   // Auto-disable speed test when API key is removed
@@ -67,6 +69,10 @@ export default function App() {
         onFunctionDefinitionsChange={setFunctionDefinitions}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
+        openaiApiKey={openaiApiKey}
+        onOpenaiApiKeyChange={setOpenaiApiKey}
+        anthropicApiKey={anthropicApiKey}
+        onAnthropicApiKeyChange={setAnthropicApiKey}
       />
       <SidebarInset>
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
