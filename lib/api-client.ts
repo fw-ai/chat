@@ -129,13 +129,17 @@ export class ApiClient {
     this.baseURL = baseURL
   }
 
-  private getHeaders(apiKey?: string): Record<string, string> {
+  private getHeaders(apiKey?: string, openaiApiKey?: string): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     }
 
     if (apiKey) {
       headers["Authorization"] = `Bearer ${apiKey}`
+    }
+
+    if (openaiApiKey) {
+      headers["X-OpenAI-API-Key"] = openaiApiKey
     }
 
     return headers
@@ -213,7 +217,7 @@ export class ApiClient {
     throw new Error(errorMessage)
   }
 
-  async getModels(apiKey?: string, functionCallingEnabled?: boolean): Promise<ChatModel[]> {
+  async getModels(apiKey?: string, functionCallingEnabled?: boolean, openaiApiKey?: string): Promise<ChatModel[]> {
     // Build query parameters
     const queryParams = new URLSearchParams()
     if (functionCallingEnabled !== undefined) {
@@ -224,7 +228,7 @@ export class ApiClient {
     const url = `${this.baseURL}/models${queryString ? `?${queryString}` : ''}`
 
     const response = await fetch(url, {
-      headers: this.getHeaders(apiKey),
+      headers: this.getHeaders(apiKey, openaiApiKey),
     })
 
     if (!response.ok) {
@@ -237,7 +241,7 @@ export class ApiClient {
     return Object.entries(data.models).map(([key, model]: [string, any]) => ({
       id: key,
       name: model.title || model.display_name || model.name || key,
-      provider: "Fireworks",
+      provider: key.startsWith("gpt-") ? "OpenAI" : "Fireworks",
       function_calling: model.supportsTools || model.function_calling || false,
       // Pass through marketing data
       ...model

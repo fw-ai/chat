@@ -84,9 +84,9 @@ export function AppSidebar({
     return fireworksApiKeyRegex.test(key)
   }
 
-  // OpenAI API key validation: sk- followed by alphanumeric characters
+  // OpenAI API key validation: sk- followed by 49-162 more characters (total 51-164)
   const isValidOpenaiApiKeyFormat = (key: string): boolean => {
-    const openaiApiKeyRegex = /^sk-[a-zA-Z0-9]+$/
+    const openaiApiKeyRegex = /^sk-[a-zA-Z0-9_-]{49,162}$/
     return openaiApiKeyRegex.test(key)
   }
 

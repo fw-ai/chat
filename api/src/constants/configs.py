@@ -67,7 +67,7 @@ except Exception as e:
     raise
 
 
-_SUPPORTED_MODELS = [v["id"] for _, v in APP_CONFIG["models"].items()]
+_SUPPORTED_MODELS = [v["id"] for _, v in APP_CONFIG["fireworks_models"].items()]
 
 
 def get_web_app_model_url():
@@ -94,7 +94,16 @@ def get_web_app_model_url():
                 "combomark": logos.get("combomark", {}).get("src"),
             }
 
-    return cleaned_urls
+    _base_dict = {
+        "logomark": cleaned_urls["gpt-oss-120b"]["logomark"],
+        "supportsTools": True,
+    }
+    open_ai_models = {
+        _id["id"]: {"title": f"OpenAI {_id['id']}", **_base_dict}
+        for _, _id in APP_CONFIG["openai_models"].items()
+    }
+
+    return {**cleaned_urls, **open_ai_models}
 
 
 WEB_APP_MODEL_URL = get_web_app_model_url()

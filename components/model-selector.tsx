@@ -13,6 +13,7 @@ interface ModelSelectorProps {
   disabled?: boolean
   apiKey?: string
   functionCallingEnabled?: boolean
+  openaiApiKey?: string
 }
 
 export function ModelSelector({
@@ -21,9 +22,10 @@ export function ModelSelector({
   className,
   disabled = false,
   apiKey,
-  functionCallingEnabled
+  functionCallingEnabled,
+  openaiApiKey
 }: ModelSelectorProps) {
-  const { models, isLoading, error } = useModels(apiKey, functionCallingEnabled)
+  const { models, isLoading, error } = useModels(apiKey, functionCallingEnabled, openaiApiKey)
 
   // Handle invalid model selection when function calling filter changes
   useEffect(() => {

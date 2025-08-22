@@ -1,4 +1,4 @@
-models:
+fireworks_models:
   kimi_k2:
     id: "kimi-k2-instruct"
 
@@ -46,6 +46,16 @@ models:
 
   llama_70b:
     id: "llama-v3p1-70b-instruct"
+
+openai_models:
+  gpt_5:
+    id: "gpt-5"
+  gpt_5_mini:
+    id: "gpt-5-mini"
+  gpt_4o:
+    id: "gpt-4o"
+  gpt_4o_mini:
+    id: "gpt-4o-mini"
 
 defaults:
   temperature: 0.1

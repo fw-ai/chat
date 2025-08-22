@@ -12,6 +12,7 @@ from src.modules.auth import (
     get_validated_api_key,
     get_api_key_safe_for_logging,
     get_optional_api_key,
+    extract_openai_api_key_from_request,
 )
 from src.modules.rate_limiter import DualLayerRateLimiter, count_message_with_rate_limit
 from src.services.comparison_service import ComparisonService, MetricsStreamer
@@ -238,9 +239,11 @@ async def root():
 
 
 @app.get("/models")
-async def get_available_models(
+async def en(
+    request: Request,
     function_calling: Optional[bool] = None,
     models: Annotated[Dict[str, Any], Depends(get_models)] = None,
+    config: Annotated[FireworksConfig, Depends(get_config)] = None,
 ):
     """Get all available models, optionally filtered by function calling capability"""
     try:
@@ -249,6 +252,22 @@ async def get_available_models(
             raise HTTPException(status_code=500, detail="No models available")
 
         logger.info(f"Total models available: {len(models)}")
+
+        openai_api_key = extract_openai_api_key_from_request(request)
+        if not openai_api_key:
+            openai_model_ids = set()
+            if hasattr(config, "config") and "openai_models" in config.config:
+                openai_model_ids = {
+                    model_info["id"]
+                    for model_info in config.config["openai_models"].values()
+                }
+
+            models = {
+                key: model
+                for key, model in models.items()
+                if key not in openai_model_ids
+            }
+            logger.info("Filtered out OpenAI models (no API key)")
 
         if function_calling:
             # Only show models that support function calling

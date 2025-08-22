@@ -11,54 +11,56 @@ interface UseModelsState {
 }
 
 // Module-level cache to persist models across component unmounts/remounts
-// Separate caches for different function calling states
-let modelsCacheAll: ChatModel[] | null = null
-let modelsCacheFunctionCalling: ChatModel[] | null = null
-let cacheErrorAll: string | null = null
-let cacheErrorFunctionCalling: string | null = null
-let isLoadingAll = false
-let isLoadingFunctionCalling = false
-let loadingPromiseAll: Promise<void> | null = null
-let loadingPromiseFunctionCalling: Promise<void> | null = null
+// Cache with keys that include OpenAI API key state
+interface CacheEntry {
+  models: ChatModel[]
+  error: string | null
+  isLoading: boolean
+  promise: Promise<void> | null
+}
 
-export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
-  // Get the appropriate cache based on function calling state
-  const getCache = () => {
-    if (functionCallingEnabled === true) {
-      return {
-        cache: modelsCacheFunctionCalling,
-        error: cacheErrorFunctionCalling,
-        isLoading: isLoadingFunctionCalling,
-        promise: loadingPromiseFunctionCalling
-      }
-    } else {
-      return {
-        cache: modelsCacheAll,
-        error: cacheErrorAll,
-        isLoading: isLoadingAll,
-        promise: loadingPromiseAll
-      }
+const modelCache = new Map<string, CacheEntry>()
+
+// Generate cache key based on function calling state and OpenAI key presence
+function getCacheKey(functionCallingEnabled?: boolean, hasOpenAiKey?: boolean): string {
+  return `fc:${functionCallingEnabled || false}-openai:${hasOpenAiKey || false}`
+}
+
+export function useModels(apiKey?: string, functionCallingEnabled?: boolean, openaiApiKey?: string) {
+  const hasOpenAiKey = Boolean(openaiApiKey?.trim())
+  const cacheKey = getCacheKey(functionCallingEnabled, hasOpenAiKey)
+
+  // Get or create cache entry
+  const getCacheEntry = (): CacheEntry => {
+    if (!modelCache.has(cacheKey)) {
+      modelCache.set(cacheKey, {
+        models: [],
+        error: null,
+        isLoading: false,
+        promise: null
+      })
     }
+    return modelCache.get(cacheKey)!
   }
 
-  const { cache, error } = getCache()
+  const cacheEntry = getCacheEntry()
 
   const [state, setState] = useState<UseModelsState>({
-    models: cache || [],
-    isLoading: cache === null,
-    error: error,
+    models: cacheEntry.models,
+    isLoading: cacheEntry.models.length === 0 && !cacheEntry.error,
+    error: cacheEntry.error,
   })
 
   useEffect(() => {
     let isMounted = true
 
     const loadModels = async () => {
-      const { cache, error, isLoading, promise } = getCache()
+      const entry = getCacheEntry()
 
       // If models are already cached and no error, use them
-      if (cache && !error) {
+      if (entry.models.length > 0 && !entry.error) {
         setState({
-          models: cache,
+          models: entry.models,
           isLoading: false,
           error: null,
         })
@@ -66,15 +68,15 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
       }
 
       // If already loading, wait for the existing promise
-      if (isLoading && promise) {
+      if (entry.isLoading && entry.promise) {
         try {
-          await promise
+          await entry.promise
           if (isMounted) {
-            const { cache: updatedCache, error: updatedError } = getCache()
+            const updatedEntry = getCacheEntry()
             setState({
-              models: updatedCache || [],
+              models: updatedEntry.models,
               isLoading: false,
-              error: updatedError,
+              error: updatedEntry.error,
             })
           }
         } catch (error) {
@@ -84,26 +86,17 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
       }
 
       // Start loading
-      if (functionCallingEnabled === true) {
-        isLoadingFunctionCalling = true
-      } else {
-        isLoadingAll = true
-      }
+      entry.isLoading = true
 
       const currentPromise = (async () => {
         try {
           setState(prev => ({ ...prev, isLoading: true, error: null }))
           // Pass function calling filter to the API
-          const models = await apiClient.getModels(apiKey, functionCallingEnabled)
+          const models = await apiClient.getModels(apiKey, functionCallingEnabled, openaiApiKey)
 
-          // Cache the results in the appropriate cache
-          if (functionCallingEnabled === true) {
-            modelsCacheFunctionCalling = models
-            cacheErrorFunctionCalling = null
-          } else {
-            modelsCacheAll = models
-            cacheErrorAll = null
-          }
+          // Cache the results
+          entry.models = models
+          entry.error = null
 
           if (isMounted) {
             setState({
@@ -116,14 +109,9 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
           console.error("Failed to load models:", error)
           const errorMessage = "Failed to load models"
 
-          // Cache the error in the appropriate cache
-          if (functionCallingEnabled === true) {
-            cacheErrorFunctionCalling = errorMessage
-            modelsCacheFunctionCalling = []
-          } else {
-            cacheErrorAll = errorMessage
-            modelsCacheAll = []
-          }
+          // Cache the error
+          entry.error = errorMessage
+          entry.models = []
 
           if (isMounted) {
             setState({
@@ -133,22 +121,13 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
             })
           }
         } finally {
-          if (functionCallingEnabled === true) {
-            isLoadingFunctionCalling = false
-            loadingPromiseFunctionCalling = null
-          } else {
-            isLoadingAll = false
-            loadingPromiseAll = null
-          }
+          entry.isLoading = false
+          entry.promise = null
         }
       })()
 
-      // Store the promise in the appropriate variable
-      if (functionCallingEnabled === true) {
-        loadingPromiseFunctionCalling = currentPromise
-      } else {
-        loadingPromiseAll = currentPromise
-      }
+      // Store the promise
+      entry.promise = currentPromise
 
       await currentPromise
     }
@@ -158,7 +137,7 @@ export function useModels(apiKey?: string, functionCallingEnabled?: boolean) {
     return () => {
       isMounted = false
     }
-  }, [functionCallingEnabled]) // Add functionCallingEnabled as dependency
+  }, [functionCallingEnabled, openaiApiKey]) // Add dependencies to refresh when they change
 
   return state
 }

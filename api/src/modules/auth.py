@@ -141,6 +141,19 @@ def extract_client_ip(request: Request) -> str:
     return ip_address
 
 
+def extract_openai_api_key_from_request(request: Request) -> Optional[str]:
+    """
+    Extract OpenAI API key from X-OpenAI-API-Key header.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        str: The extracted OpenAI API key if present, None otherwise
+    """
+    return request.headers.get("x-openai-api-key")
+
+
 def get_api_key_safe_for_logging(api_key: str) -> str:
     """
     Get a safe version of API key for logging purposes.

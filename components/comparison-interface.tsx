@@ -22,12 +22,13 @@ interface ComparisonInterfaceProps {
   apiKey: string
   onClearChatReady?: (clearChatFn: () => void) => void
   onApiKeySave?: (apiKey: string) => void
+  openaiApiKey?: string
 }
 
-export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, functionDefinitions, apiKey, onClearChatReady, onApiKeySave }: ComparisonInterfaceProps) {
+export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1, functionCallingEnabled = false, functionDefinitions, apiKey, onClearChatReady, onApiKeySave, openaiApiKey }: ComparisonInterfaceProps) {
   const { selectedModel: leftModel, setSelectedModel: setLeftModel } = useModelSelection('left')
   const { selectedModel: rightModel, setSelectedModel: setRightModel } = useModelSelection('right')
-  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
+  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled, openaiApiKey)
 
   // Auto-select first and second models when models load (only if no cached selections)
   useEffect(() => {
@@ -250,6 +251,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               disabled={false}
               apiKey={apiKey}
               functionCallingEnabled={functionCallingEnabled}
+              openaiApiKey={openaiApiKey}
             />
           </div>
           <div className="w-1/2">
@@ -260,6 +262,7 @@ export function ComparisonInterface({ speedTestEnabled = false, concurrency = 1,
               disabled={false}
               apiKey={apiKey}
               functionCallingEnabled={functionCallingEnabled}
+              openaiApiKey={openaiApiKey}
             />
           </div>
         </div>

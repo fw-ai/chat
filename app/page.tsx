@@ -101,6 +101,7 @@ export default function App() {
             functionDefinitions={functionDefinitions}
             onClearChatReady={handleClearChatReady}
             onApiKeySave={setApiKey}
+            openaiApiKey={openaiApiKey}
           />
           ) : (
             <ComparisonInterface
@@ -111,6 +112,7 @@ export default function App() {
               apiKey={apiKey}
               onClearChatReady={handleClearChatReady}
               onApiKeySave={setApiKey}
+              openaiApiKey={openaiApiKey}
             />
           )}
         </main>

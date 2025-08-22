@@ -20,11 +20,12 @@ interface ChatInterfaceProps {
   functionDefinitions?: any[]
   onClearChatReady?: (clearChatFn: () => void) => void
   onApiKeySave?: (apiKey: string) => void
+  openaiApiKey?: string
 }
 
-export function ChatInterface({ apiKey, functionCallingEnabled = false, functionDefinitions, onClearChatReady, onApiKeySave }: ChatInterfaceProps) {
+export function ChatInterface({ apiKey, functionCallingEnabled = false, functionDefinitions, onClearChatReady, onApiKeySave, openaiApiKey }: ChatInterfaceProps) {
   const { selectedModel, setSelectedModel } = useModelSelection('single')
-  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled)
+  const { models, isLoading: modelsLoading } = useModels(apiKey, functionCallingEnabled, openaiApiKey)
 
   // Auto-select first model when models load (only if no cached selection)
   useEffect(() => {
@@ -113,6 +114,7 @@ export function ChatInterface({ apiKey, functionCallingEnabled = false, function
                 disabled={false}
                 apiKey={apiKey}
                 functionCallingEnabled={functionCallingEnabled}
+                openaiApiKey={openaiApiKey}
               />
             </div>
 
